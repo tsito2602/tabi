@@ -292,3 +292,34 @@ test('booking map locations preserve legacy addresses and round-trip URLs safely
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM booking_locations WHERE booking_id = ?').get(input.id).n, 0);
   } finally { db.close(); }
 });
+
+
+test('travel notes preserve text, replay safely and enforce trip permissions', async () => {
+  const { db, call, trip } = await fixture();
+  try {
+    const base = `/trips/${trip.id}/notes`, id = randomUUID();
+    const note = { id, body: '旅のメモ\n\n☐ 買い物\n  空白も残す  \n', pinned: true };
+    for (let replay = 0; replay < 2; replay++) assert.equal((await call(base, 'POST', note, 'editor')).status, 201);
+    const read = async () => (await (await call(base)).json()).notes;
+    assert.equal((await read()).length, 1);
+    assert.equal((await read())[0].body, note.body);
+    assert.equal((await read())[0].pinned, true);
+    assert.equal((await call(base, 'POST', { ...note, body: 'a'.repeat(50001) })).status, 400);
+    assert.equal((await call(base, 'GET', undefined, 'outsider')).status, 403);
+    assert.equal((await call(base, 'POST', note, 'outsider')).status, 403);
+    db.prepare("INSERT INTO trip_member_permissions(trip_id,user_id,read_only) VALUES (?, 'editor', 1)").run(trip.id);
+    assert.equal((await call(base, 'GET', undefined, 'editor')).status, 200);
+    assert.equal((await call(base, 'POST', note, 'editor')).status, 403);
+    assert.equal((await call(`${base}/${id}`, 'DELETE', undefined, 'editor')).status, 403);
+    const other = { ...trip, id: randomUUID() };
+    await call('/trips', 'POST', other);
+    assert.equal((await call(`/trips/${other.id}/notes`, 'POST', note)).status, 409);
+    await call(`/trips/${other.id}/notes/${id}`, 'DELETE');
+    assert.equal((await read()).length, 1);
+    await call(`${base}/${id}`, 'DELETE');
+    assert.equal((await read()).length, 0);
+    await call(base, 'POST', note);
+    await call(`/trips/${trip.id}`, 'DELETE');
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM travel_notes').get().n, 0);
+  } finally { db.close(); }
+});

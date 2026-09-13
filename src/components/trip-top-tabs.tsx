@@ -2,10 +2,10 @@ import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { useModalViewport } from '@/hooks/use-modal-viewport';
 import { router, usePathname } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { PageActionContext } from './page-action-context';
 import { useDesktop } from '@/hooks/use-desktop';
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TripEditor } from './trip-editor';
 import { DeleteTripDialog } from './delete-trip-dialog';
@@ -20,6 +20,7 @@ const tabs = [
   { key: 'places', label: '行きたい場所' },
   { key: 'packing', label: '準備' },
   { key: 'bookings', label: '予約' },
+  { key: 'notes', label: 'メモ' },
 ] as const;
 
 export function TripTopTabs({ tripId }: { tripId: string }) {
@@ -27,6 +28,14 @@ export function TripTopTabs({ tripId }: { tripId: string }) {
   const styles = useThemedStyles(createStyles);
 
   const pathname = usePathname();
+  const tabScroll = useRef<ScrollView>(null);
+  const tabLayouts = useRef<Record<string, { x: number; width: number }>>({});
+  const [tabWidth, setTabWidth] = useState(0);
+  const revealTab = () => {
+    const frame = tabLayouts.current[pathname.split('/').pop() ?? ''];
+    if (frame) tabScroll.current?.scrollTo({ x: Math.max(0, frame.x - (tabWidth - frame.width) / 2), animated: false });
+  };
+  useEffect(revealTab, [pathname, tabWidth]);
   const desktop = useDesktop();
   const { action } = useContext(PageActionContext);
   const managing = pathname.endsWith('/members');
@@ -58,10 +67,10 @@ export function TripTopTabs({ tripId }: { tripId: string }) {
       </View>
       {!managing ? <>
         <SyncStatus />
-        <View testID="trip-tabs" accessibilityRole="tablist" style={styles.tabs}>{tabs.map((tab) => {
+        <ScrollView testID="trip-tabs" ref={tabScroll} horizontal showsHorizontalScrollIndicator={false} onLayout={(event) => setTabWidth(event.nativeEvent.layout.width)} onContentSizeChange={revealTab} style={styles.tabScroll} contentContainerStyle={styles.tabs} accessibilityRole="tablist">{tabs.map((tab) => {
           const selected = pathname.endsWith(`/${tab.key}`);
-          return <Pressable accessibilityRole="tab" aria-selected={selected} key={tab.key} onPress={() => router.replace({ pathname: `/trips/[tripId]/${tab.key}`, params: { tripId } })} style={[styles.tab, selected && styles.tabSelected]}><Text style={[styles.tabText, selected && styles.tabTextSelected]}>{tab.label}</Text></Pressable>;
-        })}</View>
+          return <Pressable accessibilityRole="tab" aria-selected={selected} accessibilityState={{ selected }} onLayout={(event) => { tabLayouts.current[tab.key] = event.nativeEvent.layout; if (selected) revealTab(); }} key={tab.key} onPress={() => router.replace({ pathname: `/trips/[tripId]/${tab.key}`, params: { tripId } })} style={[styles.tab, selected && styles.tabSelected]}><Text numberOfLines={1} style={[styles.tabText, selected && styles.tabTextSelected]}>{tab.label}</Text></Pressable>;
+        })}</ScrollView>
       </> : null}
       {offline.busy ? <Text style={styles.progress}>{offline.progress}</Text> : null}
     </View>
@@ -93,8 +102,9 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   tripDates: { color: palette.slate, fontSize: 10, marginTop: 4 },
   menuButton: { position: 'absolute', right: 0, width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
   menuMark: { color: palette.ocean, fontSize: 26, fontWeight: '800' },
-  tabs: { minHeight: 52, flexDirection: 'row', padding: 4, borderRadius: 16, backgroundColor: palette.paper },
-  tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  tabScroll: { marginHorizontal: -20, flexGrow: 0 },
+  tabs: { minHeight: 54, flexDirection: 'row', paddingHorizontal: 20, gap: 8, alignItems: 'center' },
+  tab: { flexShrink: 0, minWidth: 76, paddingHorizontal: 20, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   tabSelected: { backgroundColor: palette.sky },
   tabText: { color: palette.slate, fontSize: 12, lineHeight: 20, fontWeight: '700' },
   tabTextSelected: { color: palette.ink, fontWeight: '900' },

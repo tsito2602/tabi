@@ -262,6 +262,29 @@ async function placesRoute(request: Request, env: Env, user: User, tripId: strin
   return json({ error: 'Not found' }, 404);
 }
 
+async function notesRoute(request: Request, env: Env, user: User, tripId: string, noteId?: string) {
+  const forbidden = await requireMember(env, tripId, user.id);
+  if (forbidden) return forbidden;
+  if (request.method === 'GET' && !noteId) {
+    const rows = await env.DB.prepare('SELECT id, body, pinned, updated_at AS updatedAt FROM travel_notes WHERE trip_id=? ORDER BY pinned DESC, updated_at DESC, id').bind(tripId).all();
+    return json({ notes: rows.results.map((row) => ({ ...row, pinned: Boolean(row.pinned) })) });
+  }
+  if (request.method === 'DELETE' && noteId) {
+    await env.DB.prepare('DELETE FROM travel_notes WHERE id=? AND trip_id=?').bind(noteId, tripId).run();
+    return new Response(null, { status: 204 });
+  }
+  if (request.method === 'POST' && !noteId) {
+    const body = await request.json().catch(() => null);
+    if (!isObject(body) || !idField(body.id) || typeof body.body !== 'string' || body.body.length > 50000 || typeof body.pinned !== 'boolean') return json({ error: 'メモは50,000文字以内で入力してください' }, 400);
+    const result = await env.DB.prepare(`INSERT INTO travel_notes (id,trip_id,body,pinned,updated_by) VALUES (?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET body=excluded.body,pinned=excluded.pinned,updated_by=excluded.updated_by,updated_at=unixepoch()
+      WHERE travel_notes.trip_id=excluded.trip_id`).bind(body.id, tripId, body.body, Number(body.pinned), user.id).run();
+    if (!result.meta.changes) return json({ error: 'メモのIDが競合しました' }, 409);
+    return json({ id: body.id }, 201);
+  }
+  return json({ error: 'Not found' }, 404);
+}
+
 async function listItems(env: Env, user: User, tripId: string) {
   const forbidden = await requireMember(env, tripId, user.id);
   if (forbidden) return forbidden;
@@ -834,6 +857,8 @@ async function api(request: Request, env: Env, url: URL) {
   if (membersMatch) return membersRoute(request, env, user, membersMatch[1], membersMatch[2]);
   const tripMatch = url.pathname.match(/^\/v1\/trips\/([^/]+)$/);
   if (tripMatch && request.method === 'DELETE') return deleteTrip(env, user, tripMatch[1]);
+  const notesMatch = url.pathname.match(/^\/v1\/trips\/([^/]+)\/notes(?:\/([^/]+))?$/);
+  if (notesMatch) return notesRoute(request, env, user, notesMatch[1], notesMatch[2]);
   const placesMatch = url.pathname.match(/^\/v1\/trips\/([^/]+)\/places(?:\/([^/]+))?$/);
   if (placesMatch) return placesRoute(request, env, user, placesMatch[1], placesMatch[2]);
   if (tripMatch && request.method === 'PATCH') return updateTrip(request, env, user, tripMatch[1]);

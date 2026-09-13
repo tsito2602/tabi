@@ -211,3 +211,14 @@ CREATE TABLE IF NOT EXISTS booking_locations (
   booking_id TEXT PRIMARY KEY REFERENCES bookings(id) ON DELETE CASCADE,
   location TEXT NOT NULL DEFAULT ''
 );
+
+
+CREATE TABLE IF NOT EXISTS travel_notes (
+  id TEXT PRIMARY KEY,
+  trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  body TEXT NOT NULL DEFAULT '',
+  pinned INTEGER NOT NULL DEFAULT 0 CHECK(pinned IN (0,1)),
+  updated_by TEXT REFERENCES users(id),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS travel_notes_trip ON travel_notes(trip_id, pinned, updated_at);

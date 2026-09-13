@@ -15,6 +15,7 @@ const pages = [
   { key: 'bookings', label: '予約', icon: 'confirmation_number' },
   { key: 'places', label: '行きたい場所', icon: 'location_on' },
   { key: 'packing', label: '準備', icon: 'checklist' },
+  { key: 'notes', label: 'メモ', icon: 'description' },
   { key: 'members', label: 'メンバー', icon: 'group' },
 ] as const;
 

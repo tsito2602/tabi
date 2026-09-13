@@ -262,3 +262,22 @@ test('a revoked queued edit is removed and cannot block another trip or stale op
     assert.throws(() => current.createPlace({ title: 'Test' }), /閲覧のみ/);
   } finally { f.close(); }
 });
+
+test('notes persist offline, reopen and delete without affecting another trip', async () => {
+  const f = await fixture({ isDemo: true });
+  try {
+    const id = randomUUID();
+    f.api.saveNote(id, { body: '旅のメモ\n☐ 切符', pinned: false });
+    f.api.saveNote(id, { body: '旅のメモ\n☑ 切符', pinned: true });
+    assert.equal(f.render().notes.length, 1);
+    assert.equal(f.render().notes[0].pinned, true);
+    assert.equal(f.writes.at(-1).notesByTrip.trip[0].body, '旅のメモ\n☑ 切符');
+    const next = f.api.createTrip({ name: '別の旅', destination: '', startsOn: '2026-12-01', endsOn: '2026-12-02' });
+    assert.equal(f.render().notes.length, 0);
+    f.api.selectTrip('trip');
+    assert.equal(f.render().notes[0].id, id);
+    f.api.deleteNote(id);
+    assert.equal(f.render().notes.length, 0);
+    assert.ok(next);
+  } finally { f.close(); }
+});

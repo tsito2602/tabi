@@ -53,7 +53,7 @@ export default function PlacesScreen() {
     if (!planning || !day || !canEdit) return;
     if (items.some((item) => item.id === planning.itineraryItemId)) { setPlanning(null); return; }
     const itineraryItemId = createItem({ title: planning.title, day, time: '', kind: '予定', note: [planning.note, planning.location].filter(Boolean).join('\n') });
-    updatePlace(planning.id, { ...planning, itineraryItemId, status: planning.status === 'visited' ? 'visited' : 'planned' });
+    updatePlace(planning.id, { ...planning, itineraryItemId, status: planning.status === 'want' ? 'planned' : planning.status });
     toast('しおりに追加しました'); setPlanning(null);
   };
   return <View style={styles.screen}>
@@ -89,6 +89,12 @@ export default function PlacesScreen() {
     {editing ? <FormSheet visible presentation={viewing ? 'detail' : 'form'} title={viewing ? '場所の詳細' : editing === 'new' ? '場所を追加' : '場所を編集'} onClose={() => setEditing(null)} onSave={canEdit ? viewing ? () => setViewing(false) : save : undefined} saveLabel={viewing ? '編集' : '保存'} canSave={viewing || Boolean(draft.title.trim())} dirty={!viewing && JSON.stringify(draft) !== initial} error={error}>
       {viewing ? <View testID="place-details" style={styles.details}>
         <Text accessibilityRole="header" selectable style={styles.detailTitle}>{draft.title}</Text>
+        {editing !== 'new' && (canEdit || items.some((item) => item.id === draft.itineraryItemId)) ? <Pressable accessibilityRole="button" style={styles.mapButton} onPress={() => {
+          const item = items.find((entry) => entry.id === draft.itineraryItemId);
+          setEditing(null);
+          if (item && selectedTrip) router.push({ pathname: '/trips/[tripId]/itinerary', params: { tripId: selectedTrip.id, itemId: item.id } });
+          else { setDay(selectedTrip?.startsOn ?? ''); setPlanning(places.find((entry) => entry.id === editing.id) ?? editing); }
+        }}><Text style={styles.actionText}>{items.some((item) => item.id === draft.itineraryItemId) ? 'しおりを見る' : 'しおりへ'}</Text></Pressable> : null}
         <View style={styles.detailStatus}><PlaceStatusIcon status={draft.status} size={20} /><Text style={styles.statusText}>{placeStatuses.find((item) => item.value === draft.status)?.label}</Text></View>
         {draft.location ? <View style={styles.detailSection}><Text style={styles.detailLabel}>場所</Text><Text selectable style={styles.detailValue}>{draft.location}</Text></View> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={`${draft.title}の地図を開く`} onPress={() => { const url = mapUrl(draft.location, draft.title); if (url) void Linking.openURL(url); }} style={styles.mapButton}><SymbolView name={{ ios: 'map', android: 'map', web: 'map' }} size={20} tintColor={palette.ocean} /><Text style={styles.actionText}>地図を開く</Text></Pressable>
