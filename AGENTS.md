@@ -1,18 +1,21 @@
 # tabi の開発ルール
 
 - GitHub Issueを起点に、原則1 Issue・1ブランチ・1 PR。最新の`main`から`<type>/issue-<番号>-<短い説明>`を作る。
-- 変更依頼は修正・検証・PR作成/更新・staging反映まで進める。[tabi-staging](.agents/skills/tabi-staging/SKILL.md)は反映時に読む。
-- `main`へ直接pushしない。main向けPRのマージと本番反映はユーザーの明示的な指示がある場合に行う。
+- 変更は修正・検証・PR作成/更新・staging反映まで進める。[tabi-staging](.agents/skills/tabi-staging/SKILL.md)は反映時だけ読む。`main`への直接pushは禁止し、mainへのマージ・本番反映はユーザーの明示指示が必要。
 - 明示的な依頼がなければサブエージェントを使用しない。
-- ExpoのAPI・設定・互換性を調べるときは[SDK 57の該当資料](https://docs.expo.dev/versions/v57.0.0/)を参照する。
-- コード・依存・ビルド設定の変更はPR前に`npm run check`。文書のみは差分と参照の整合性を確認する。CIの必須チェックは維持する。
-- Google OAuthのClient Secret、Cloudflare API token、セッション秘密鍵をリポジトリへ保存しない。
-- Google ID tokenはサーバーで署名・issuer・audience・有効期限を検証する。decodeしたpayloadだけで信用しない。
-- stagingとproductionのD1・R2は完全に分離する。
 
-## バージョン更新
+## 読込・実行を最小限にする
 
-- バージョンは`package.json`を正として、`package-lock.json`と`app.json`の`expo.version`を同期する。
-- 1リリースにつき1回、修正はPATCH、後方互換の機能追加はMINOR、互換性を壊す変更はMAJORとし、含まれる変更のうち最も大きい区分を採用する。
-- 配信する挙動が変わらない文書・テスト・CI等のみの変更では上げない。
-- バージョン変更は検証・コミットより前に含める。Git tag・GitHub Releaseは別途指示がある場合だけ作成する。
+- 関連パス・シンボルを検索し、必要な行だけ読む。文書・履歴・ディレクトリ一覧・大きいファイルを一括で読まず、未変更の内容と取得済みツール定義は再取得しない。不足や更新がある場合だけ範囲を広げる。
+- 独立した検索・読込・状態確認はまとめる。依頼と無関係な探索、リファクタリング、追加機能は行わない。
+- コード・依存・ビルド設定の変更は最終差分で`npm run check`を実行する。内包するlint・テスト・buildを重ねて実行しない。同じcommit・環境の成功結果は再利用し、変更・失敗・環境差・具体的な未解決リスクがある場合だけ関連確認をやり直す。必須CIは維持する。
+- 文書・エージェント設定だけなら差分・構文・参照の整合性を確認し、ローカルのアプリ全検証は行わない。UI確認は変更箇所と影響するスマホ／PCの代表ケースに絞る。単純な文言・色・余白に実装を写したテストを追加しない。
+- コマンドの全ログは必要に応じてファイルへ保存し、成功時は終了コードと要点、失敗時は該当箇所だけ読む。切れた出力から成功を推定せず、不足箇所を追加取得する。CI・デプロイを短間隔で繰り返し照会しない。
+- 完了条件と必要な確認を満たしたら終了する。最終報告は原則5行以内で、変更・検証・PR・staging・未完了事項を伝える。説明や調査結果を求められた場合は必要な詳しさで答える。
+
+## 安全性・バージョン
+
+- ExpoのAPI・設定・互換性を調べるときは[SDK 57](https://docs.expo.dev/versions/v57.0.0/)の該当箇所を参照する。
+- OAuth Client Secret・Cloudflare API token・セッション秘密鍵をリポジトリへ保存しない。Google ID tokenはサーバーで署名・issuer・audience・有効期限を検証する。decodeだけで信用しない。stagingとproductionのD1・R2は完全に分離する。
+- バージョンは`package.json`を正とし、`package-lock.json`・`app.json`の`expo.version`を同期する。1リリースで1回、修正はPATCH、後方互換の機能追加はMINOR、互換性を壊す変更はMAJORとし、最大区分を検証・コミット前に適用する。
+- 配信の挙動が変わらない文書・テスト・CI等のみではバージョンを上げない。Git tag・GitHub Releaseは別途明示指示がある場合だけ作成する。

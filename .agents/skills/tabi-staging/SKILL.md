@@ -3,12 +3,11 @@ name: tabi-staging
 description: tabiのPRをstagingへ反映し、Cloudflareのデプロイ結果を確認するときに使う。
 ---
 
-# tabi のステージング反映
+# staging反映
 
-main向けPRを開いたまま、変更をstagingで確認できる状態にする。
-
-- PRの変更を最新の`staging`へ統合する。他のPRの反映内容を保持し、依頼範囲内の競合解消・検証失敗の修正・再反映まで進める。
-- `staging`へのpushで`Deploy staging`が起動する。設定や失敗原因を調べる場合だけ、staging側の`.github/workflows/deploy-staging.yml`と`docs/DEPLOYMENT.md`の該当箇所を読む。通常の反映で手動デプロイを重ねない。
-- 完了の根拠は、対象commitの`CI`と`Deploy staging`の成功、および[staging](https://tabi-staging.tsito-apps.workers.dev)の応答。画面・動作を変えた場合は該当フローも確認する。文書だけの変更では画面全体を再検証しない。
-- 失敗した場合はログで原因を絞って修正する。権限・認証・外部サービスの障害で進めない場合は、完了済みの作業と未確認事項を報告し、成功した扱いにしない。
-- PRのURL・検証結果・staging反映状況を簡潔に伝える。本番反映は`AGENTS.md`の条件に従う。
+- main向けPRを開いたまま、変更を最新の`staging`へ統合する。他のPRの内容を保持し、依頼範囲の競合・検証失敗を修正する。
+- pushで`Deploy staging`が起動するため、手動デプロイを重ねない。構成変更・失敗調査時だけ、staging側の`.github/workflows/deploy-staging.yml`と`docs/DEPLOYMENT.md`の該当箇所を読む。
+- 対象commitの`CI`・`Deploy staging`の成功と[staging](https://tabi-staging.tsito-apps.workers.dev)の応答を確認する。commit・環境と結果を対応づけ、同じ成功結果を取り直さない。PR headと統合後commitの結果を混同しない。
+- 実行中の確認は利用可能な待機コマンドや通知を優先し、短間隔のポーリングを避ける。成功ログの全文を読まず、失敗したjob・stepの必要箇所だけ取得する。出力不足があれば範囲を広げる。
+- 画面・動作を変えた場合だけ該当フローを確認する。文書・エージェント設定のみなら画面の再検証は不要。ローカルの検証は`AGENTS.md`に従い、既存の成功確認を重ねない。
+- 権限・認証・外部障害で進めない場合は迂回せず、完了済みと未確認を区別して報告する。PR・検証・staging状況を簡潔に伝える。本番反映は`AGENTS.md`の条件に従う。

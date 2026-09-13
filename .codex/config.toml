@@ -1,0 +1,11 @@
+# Trusted projects only; explicit CLI/session overrides take precedence.
+model = "gpt-6-astra"
+model_reasoning_effort = "medium"
+model_reasoning_summary = "concise"
+approvals_reviewer = "user"
+# History budget per tool output, not a total task budget. Read omissions as needed.
+tool_output_token_limit = 2000
+
+[features]
+multi_agent = false
+skill_mcp_dependency_install = false
