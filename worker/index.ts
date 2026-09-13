@@ -1,5 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
-import { mapUrl } from '../src/data/places';
+import { mapUrl, referenceUrl } from '../src/data/places';
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { connectionBetween, createsFlightConnectionCycle, type FlightConnectionInput } from '../src/data/flight-connections';
@@ -196,18 +196,30 @@ function placeFields(body: Record<string, unknown>) {
   const note = textField(body.note, 4000);
   const openingHours = textField(body.openingHours, 500);
   const location = textField(body.location, 2000);
+  let referenceLinks: { label: string; url: string }[] | undefined;
+  if (body.referenceLinks !== undefined) {
+    if (!Array.isArray(body.referenceLinks) || body.referenceLinks.length > 20) return null;
+    referenceLinks = [];
+    for (const link of body.referenceLinks) {
+      if (!isObject(link)) return null;
+      const label = textField(link.label, 120);
+      const url = textField(link.url, 2000, true);
+      if (label === null || !url || !referenceUrl(url)) return null;
+      referenceLinks.push({ label, url });
+    }
+  }
   const status = textField(body.status, 20);
   const reservationStatus = textField(body.reservationStatus, 20);
-  if (!title || note === null || openingHours === null || location === null || !['want','planned','visited','skipped'].includes(status ?? '') || !['not_needed','needed','requested','confirmed'].includes(reservationStatus ?? '')) return null;
+  if (!title || note === null || openingHours === null || location === null || !['want','planned','visited','skipped'].includes(status ?? '') || !['not_needed','unavailable','needed','requested','confirmed'].includes(reservationStatus ?? '')) return null;
   if (/^[a-z][a-z0-9+.-]*:/i.test(location) && !/^https?:\/\//i.test(location)) return null;
-  return { title, note, openingHours, location, status, reservationStatus };
+  return { title, note, openingHours, location, status, reservationStatus, ...(referenceLinks === undefined ? {} : { referenceLinks }) };
 }
 async function placesRoute(request: Request, env: Env, user: User, tripId: string, placeId?: string) {
   const forbidden = await requireMember(env, tripId, user.id);
   if (forbidden) return forbidden;
   if (!placeId && request.method === 'GET') {
-    const rows = await env.DB.prepare('SELECT id, title, note, opening_hours AS openingHours, reservation_status AS reservationStatus, location, status, updated_at AS updatedAt FROM places WHERE trip_id = ? ORDER BY updated_at DESC, id').bind(tripId).all();
-    return json({ places: rows.results });
+    const rows = await env.DB.prepare(`SELECT p.id, p.title, p.note, p.opening_hours AS openingHours, COALESCE(d.reservation_status, p.reservation_status) AS reservationStatus, p.location, p.status, p.updated_at AS updatedAt, COALESCE(d.reference_links, '[]') AS referenceLinks FROM places p LEFT JOIN place_details d ON d.place_id = p.id WHERE p.trip_id = ? ORDER BY p.updated_at DESC, p.id`).bind(tripId).all();
+    return json({ places: rows.results.map((row) => ({ ...row, referenceLinks: JSON.parse(row.referenceLinks as string) })) });
   }
   if (placeId && request.method === 'DELETE') {
     await env.DB.prepare('DELETE FROM places WHERE trip_id = ? AND id = ?').bind(tripId, placeId).run();
@@ -217,11 +229,20 @@ async function placesRoute(request: Request, env: Env, user: User, tripId: strin
     const body = await request.json().catch(() => null);
     const fields = isObject(body) ? placeFields(body) : null;
     if (!fields) return json({ error: '場所の名前と入力内容を確認してください' }, 400);
-    const { title, note, openingHours, reservationStatus, location, status } = fields;
+    const { title, note, openingHours, reservationStatus, location, status, referenceLinks } = fields;
+    const legacyReservationStatus = reservationStatus === 'unavailable' ? 'not_needed' : reservationStatus;
     const id = placeId ?? idField(body.id) ?? crypto.randomUUID();
-    const result = placeId
-      ? await env.DB.prepare('UPDATE places SET title=?, note=?, opening_hours=?, reservation_status=?, location=?, status=?, updated_by=?, updated_at=unixepoch() WHERE id=? AND trip_id=?').bind(title, note, openingHours, reservationStatus, location, status, user.id, id, tripId).run()
-      : await env.DB.prepare(`INSERT INTO places (id, trip_id, title, note, opening_hours, reservation_status, location, status, updated_by) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, note=excluded.note, opening_hours=excluded.opening_hours, reservation_status=excluded.reservation_status, location=excluded.location, status=excluded.status, updated_by=excluded.updated_by, updated_at=unixepoch() WHERE places.trip_id=excluded.trip_id`).bind(id, tripId, title, note, openingHours, reservationStatus, location, status, user.id).run();
+    const statement = placeId
+      ? await env.DB.prepare('UPDATE places SET title=?, note=?, opening_hours=?, reservation_status=?, location=?, status=?, updated_by=?, updated_at=unixepoch() WHERE id=? AND trip_id=?').bind(title, note, openingHours, legacyReservationStatus, location, status, user.id, id, tripId)
+      : await env.DB.prepare(`INSERT INTO places (id, trip_id, title, note, opening_hours, reservation_status, location, status, updated_by) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, note=excluded.note, opening_hours=excluded.opening_hours, reservation_status=excluded.reservation_status, location=excluded.location, status=excluded.status, updated_by=excluded.updated_by, updated_at=unixepoch() WHERE places.trip_id=excluded.trip_id`).bind(id, tripId, title, note, openingHours, legacyReservationStatus, location, status, user.id);
+    const linksJson = referenceLinks === undefined ? null : JSON.stringify(referenceLinks);
+    const [result] = await env.DB.batch([
+      statement,
+      env.DB.prepare(`INSERT INTO place_details (place_id, reference_links, reservation_status)
+        SELECT ?, COALESCE(?, '[]'), ? WHERE EXISTS (SELECT 1 FROM places WHERE id = ? AND trip_id = ?)
+        ON CONFLICT(place_id) DO UPDATE SET reference_links = COALESCE(?, place_details.reference_links), reservation_status = excluded.reservation_status
+      `).bind(id, linksJson, reservationStatus === 'unavailable' ? reservationStatus : null, id, tripId, linksJson),
+    ]);
     if (!result.meta.changes) return json({ error: '場所が見つからないか、IDが競合しました' }, placeId ? 404 : 409);
     return json({ place: { id, ...fields } }, placeId ? 200 : 201);
   }

@@ -81,7 +81,8 @@ export type TravelTask = {
 };
 
 export type PlaceStatus = 'want' | 'planned' | 'visited' | 'skipped';
-export type ReservationStatus = 'not_needed' | 'needed' | 'requested' | 'confirmed';
+export type ReservationStatus = 'not_needed' | 'unavailable' | 'needed' | 'requested' | 'confirmed';
+export type PlaceReferenceLink = { label: string; url: string };
 export type Place = {
   id: string;
   title: string;
@@ -89,6 +90,7 @@ export type Place = {
   openingHours: string;
   reservationStatus: ReservationStatus;
   location: string;
+  referenceLinks?: PlaceReferenceLink[];
   status: PlaceStatus;
   updatedAt?: number;
 };

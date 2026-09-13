@@ -50,8 +50,8 @@ input:focus, textarea:focus { outline: none; box-shadow: 0 0 0 2px #92ADB766; }
   :is([data-testid="form-modal-viewport"], [data-testid="detail-modal-viewport"]) { padding: 0 !important; padding-top: max(12px, env(safe-area-inset-top)) !important; justify-content: flex-end !important; }
   [data-testid="form-sheet"] { border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; max-height: 100% !important; margin-top: auto; }
   :is([data-testid="form-modal-viewport"], [data-testid="detail-modal-viewport"]):has(input:focus, textarea:focus) [data-testid="form-sheet"] { padding-bottom: 0 !important; }
-  [data-testid="modal-viewport"]:has(input:focus, textarea:focus) { padding: 0 !important; padding-top: max(12px, env(safe-area-inset-top)) !important; justify-content: flex-end !important; }
-  [data-testid="modal-viewport"]:has(input:focus, textarea:focus) [data-testid="picker-sheet"] { max-height: 100% !important; border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; }
+  [data-testid="modal-viewport"]:has([data-testid="picker-sheet"]) { padding: 0 !important; padding-top: max(12px, env(safe-area-inset-top)) !important; justify-content: flex-end !important; }
+  [data-testid="modal-viewport"] [data-testid="picker-sheet"] { max-height: 100% !important; border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; }
   /* Keep Safari from zooming the viewport when a compact form field gains focus. */
   [data-testid="form-sheet"] input, [data-testid="form-sheet"] textarea, [data-testid="picker-sheet"] input { font-size: 16px !important; }
 }

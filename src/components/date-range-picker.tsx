@@ -1,5 +1,6 @@
 import { useThemedStyles } from '@/theme/theme-provider';
 import { useModalViewport } from '@/hooks/use-modal-viewport';
+import { useFormKeyboard } from '@/hooks/use-form-keyboard';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -64,6 +65,8 @@ function DateRangeDialog({ startDate, endDate, startTime = '', endTime = '', sta
   const styles = useThemedStyles(createStyles);
 
   const viewport = useModalViewport(true);
+  const scroll = useRef<ScrollView>(null);
+  useFormKeyboard(scroll);
   const initial = startDate || endDate || todayValue();
   const [range, setRange] = useState<DateRange>({ startDate, endDate });
   const [anchorDate, setAnchorDate] = useState(startDate);
@@ -126,7 +129,7 @@ function DateRangeDialog({ startDate, endDate, startTime = '', endTime = '', sta
       <SafeAreaView testID="modal-viewport" style={[styles.backdrop, viewport]}>
         <Pressable accessibilityLabel="日付選択を閉じる" onPress={close} style={StyleSheet.absoluteFill} />
         <View testID="picker-sheet" accessibilityViewIsModal style={styles.dialog}>
-          <ScrollView contentContainerStyle={styles.dialogContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView ref={scroll} contentContainerStyle={styles.dialogContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.heading}>
             <Text style={styles.dialogTitle}>{label}</Text>
             <Pressable accessibilityLabel="日付選択を閉じる" onPress={close} style={styles.iconButton}><Text style={styles.close}>×</Text></Pressable>

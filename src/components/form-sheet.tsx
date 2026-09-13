@@ -1,5 +1,6 @@
 import { useThemedStyles } from '@/theme/theme-provider';
 import { useModalViewport } from '@/hooks/use-modal-viewport';
+import { useFormKeyboard } from '@/hooks/use-form-keyboard';
 import { PropsWithChildren, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +27,7 @@ export function FormSheet({ presentation = 'form', visible, title, onClose, onSa
   const [reduceMotion, setReduceMotion] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const scroll = useRef<ScrollView>(null);
+  useFormKeyboard(scroll, visible);
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
     const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);

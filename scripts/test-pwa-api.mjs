@@ -28,6 +28,40 @@ async function fixture() {
   return { db, call, trip, removed };
 }
 const place = { title: '美術館', note: '展示', openingHours: '10:00–18:00', reservationStatus: 'needed', location: 'https://maps.app.goo.gl/abc', status: 'want' };
+test('multiple place links and unavailable reservations round-trip without losing legacy data', async () => {
+  const { db, call, trip } = await fixture();
+  try {
+    const base = `/trips/${trip.id}/places`, id = randomUUID();
+    const read = async () => (await (await call(base)).json()).places.find((item) => item.id === id);
+    assert.equal((await call(base, 'POST', { id, ...place })).status, 201);
+    assert.deepEqual((await read()).referenceLinks, []);
+    const referenceLinks = [{ label: '公式サイト', url: 'https://museum.example/' }, { label: '', url: 'https://museum.example/exhibitions?a=1&b=2' }];
+    const input = { ...place, reservationStatus: 'unavailable', referenceLinks };
+    assert.equal((await call(`${base}/${id}`, 'PATCH', input, 'editor')).status, 200);
+    assert.deepEqual((await read()).referenceLinks, referenceLinks);
+    assert.equal((await read()).reservationStatus, 'unavailable');
+    // Older queued clients omit links; both PATCH and replayed POST retain them.
+    assert.equal((await call(`${base}/${id}`, 'PATCH', place)).status, 200);
+    assert.equal((await call(base, 'POST', { id, ...place })).status, 201);
+    assert.deepEqual((await read()).referenceLinks, referenceLinks);
+    assert.equal((await read()).reservationStatus, 'needed');
+    for (const links of [[{ label: '', url: 'javascript:alert(1)' }], [{ label: '', url: 'https://' }], [{ label: '', url: 'museum.example' }], [{ label: '', url: 'https://user:pass@museum.example' }], [{ label: '', url: 'https://museum.example/' + 'a'.repeat(2000) }], Array(21).fill(referenceLinks[0]), null]) {
+      assert.equal((await call(`${base}/${id}`, 'PATCH', { ...place, referenceLinks: links })).status, 400);
+    }
+    assert.equal((await call(`${base}/${id}`, 'PATCH', input, 'outsider')).status, 403);
+    assert.deepEqual((await read()).referenceLinks, referenceLinks);
+    const other = { ...trip, id: randomUUID() };
+    assert.equal((await call('/trips', 'POST', other)).status, 201);
+    assert.equal((await call(`/trips/${other.id}/places`, 'POST', { id, ...input })).status, 409);
+    assert.deepEqual((await read()).referenceLinks, referenceLinks);
+    assert.equal((await call(`${base}/${id}`, 'PATCH', { ...input, referenceLinks: [referenceLinks[1]] })).status, 200);
+    assert.deepEqual((await read()).referenceLinks, [referenceLinks[1]]);
+    assert.equal((await call(`${base}/${id}`, 'PATCH', { ...input, referenceLinks: [] })).status, 200);
+    assert.deepEqual((await read()).referenceLinks, []);
+    assert.equal((await call(`${base}/${id}`, 'DELETE')).status, 204);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM place_details WHERE place_id = ?').get(id).n, 0);
+  } finally { db.close(); }
+});
 test('places CRUD is shared, validated, scoped and replay-safe', async () => {
   const { db, call, trip } = await fixture();
   try {

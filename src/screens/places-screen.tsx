@@ -8,13 +8,13 @@ import { FloatingAddButton } from '@/components/floating-add-button';
 import { mono, type Palette } from '@/constants/design';
 import { useTravel } from '@/data/travel-provider';
 import type { Place, PlaceInput, PlaceStatus } from '@/data/types';
-import { mapUrl, placeStatuses, reservationStatuses } from '@/data/places';
+import { mapUrl, referenceUrl, placeStatuses, reservationStatuses } from '@/data/places';
 import { confirmDeletion } from '@/utils/confirm-deletion';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { useToast } from '@/components/toast';
 import { useTripHeaderHeight } from '@/components/trip-header-context';
 
-const empty: PlaceInput = { title: '', note: '', openingHours: '', reservationStatus: 'not_needed', location: '', status: 'want' };
+const empty: PlaceInput = { title: '', note: '', openingHours: '', reservationStatus: 'not_needed', location: '', referenceLinks: [], status: 'want' };
 export default function PlacesScreen() {
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
@@ -33,11 +33,13 @@ export default function PlacesScreen() {
   const [planning, setPlanning] = useState<Place | null>(null);
   const [day, setDay] = useState('');
   const filtered = useMemo(() => places.filter((place) => (filter === 'all' || place.status === filter) && `${place.title} ${place.note} ${place.location}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())), [places, filter, search]);
-  const open = (place?: Place) => { const value = place ?? empty; setDraft(value); setInitial(JSON.stringify(value)); setError(''); setEditing(place ?? 'new'); setViewing(Boolean(place)); };
+  const open = (place?: Place) => { const value = place ? { ...place, referenceLinks: place.referenceLinks ?? [] } : empty; setDraft(value); setInitial(JSON.stringify(value)); setError(''); setEditing(place ?? 'new'); setViewing(Boolean(place)); };
   const save = () => {
     if (!draft.title.trim()) return setError('タイトルを入力してください');
     if (draft.location.trim() && !mapUrl(draft.location)) return setError('場所は住所か、http / httpsのURLを入力してください');
-    const input = { ...draft, title: draft.title.trim(), location: draft.location.trim() };
+    const referenceLinks = (draft.referenceLinks ?? []).map((link) => ({ label: link.label.trim(), url: link.url.trim() })).filter((link) => link.label || link.url);
+    if (referenceLinks.some((link) => !referenceUrl(link.url))) return setError('参照リンクはhttp / httpsのURLを入力してください');
+    const input = { ...draft, title: draft.title.trim(), location: draft.location.trim(), referenceLinks };
     if (!canEdit) return;
     const id = editing && editing !== 'new' ? editing.id : createPlace(input);
     if (editing && editing !== 'new') updatePlace(id, input);
@@ -82,6 +84,13 @@ export default function PlacesScreen() {
         <View style={styles.detailStatus}><PlaceStatusIcon status={draft.status} size={20} /><Text style={styles.statusText}>{placeStatuses.find((item) => item.value === draft.status)?.label}</Text></View>
         {draft.location ? <View style={styles.detailSection}><Text style={styles.detailLabel}>場所</Text><Text selectable style={styles.detailValue}>{draft.location}</Text></View> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={`${draft.title}の地図を開く`} onPress={() => { const url = mapUrl(draft.location, draft.title); if (url) void Linking.openURL(url); }} style={styles.mapButton}><SymbolView name={{ ios: 'map', android: 'map', web: 'map' }} size={20} tintColor={palette.ocean} /><Text style={styles.actionText}>地図を開く</Text></Pressable>
+        {draft.referenceLinks?.length ? <View style={styles.detailSection}><Text style={styles.detailLabel}>参照リンク</Text>{draft.referenceLinks.map((link, index) => {
+          const url = referenceUrl(link.url);
+          return url ? <Pressable key={index} accessibilityRole="link" accessibilityLabel={`${link.label || new URL(url).hostname}を開く`} onPress={() => { void Linking.openURL(url).catch(() => toast('リンクを開けませんでした')); }} style={styles.referenceButton}>
+            <SymbolView name={{ ios: 'link', android: 'link', web: 'link' }} size={20} tintColor={palette.ocean} />
+            <View style={styles.referenceCopy}><Text style={styles.referenceTitle}>{link.label || new URL(url).hostname}</Text><Text numberOfLines={1} style={styles.referenceUrl}>{url}</Text></View>
+          </Pressable> : null;
+        })}</View> : null}
         {draft.openingHours ? <View style={styles.detailSection}><Text style={styles.detailLabel}>営業時間</Text><Text selectable style={styles.detailValue}>{draft.openingHours}</Text></View> : null}
         <View style={styles.detailSection}><Text style={styles.detailLabel}>予約状況</Text><Text style={[styles.detailValue, draft.reservationStatus === 'needed' && styles.needed]}>{reservationStatuses.find((item) => item.value === draft.reservationStatus)?.label}</Text></View>
         {draft.note ? <View style={styles.detailSection}><Text style={styles.detailLabel}>メモ</Text><Text selectable style={styles.detailValue}>{draft.note}</Text></View> : null}
@@ -89,6 +98,13 @@ export default function PlacesScreen() {
       <Text style={styles.label}>タイトル</Text><TextInput editable={canEdit} autoFocus={canEdit} accessibilityLabel="場所のタイトル" value={draft.title} onChangeText={(title) => setDraft({ ...draft, title })} maxLength={160} placeholder="カフェ、美術館、気になるお店" placeholderTextColor={palette.placeholder} style={styles.input} />
       <Text style={styles.label}>ステータス</Text><View style={styles.options}>{placeStatuses.map((item) => <Pressable accessibilityRole="button" key={item.value} disabled={!canEdit} onPress={() => setDraft({ ...draft, status: item.value })} style={[styles.option, draft.status === item.value && styles.filterSelected]}><PlaceStatusIcon status={item.value} /><Text style={styles.optionText}>{item.label}</Text></Pressable>)}</View>
       <Text style={styles.label}>場所</Text><TextInput editable={canEdit} accessibilityLabel="場所" value={draft.location} onChangeText={(location) => setDraft({ ...draft, location })} maxLength={2000} placeholder="URL または住所" placeholderTextColor={palette.placeholder} autoCapitalize="none" style={styles.input} /><Text style={styles.hint}>Google Mapsの共有URLがおすすめです</Text>
+      <Text style={styles.label}>参照リンク</Text>
+      {(draft.referenceLinks ?? []).map((link, index) => <View key={index} style={styles.referenceFields}>
+        <View style={styles.referenceHeading}><Text style={styles.hint}>リンク {index + 1}</Text><Pressable accessibilityRole="button" accessibilityLabel={`参照リンク${index + 1}を削除`} disabled={!canEdit} onPress={() => setDraft({ ...draft, referenceLinks: draft.referenceLinks?.filter((_, at) => at !== index) })} style={styles.removeLink}><SymbolView name={{ ios: 'trash', android: 'delete', web: 'delete' }} size={20} tintColor={palette.danger} /></Pressable></View>
+        <TextInput editable={canEdit} accessibilityLabel={`参照リンク${index + 1}の表示名`} value={link.label} onChangeText={(label) => setDraft({ ...draft, referenceLinks: draft.referenceLinks?.map((item, at) => at === index ? { ...item, label } : item) })} maxLength={120} placeholder="表示名（任意）" placeholderTextColor={palette.placeholder} style={styles.input} />
+        <TextInput editable={canEdit} accessibilityLabel={`参照リンク${index + 1}のURL`} value={link.url} onChangeText={(url) => setDraft({ ...draft, referenceLinks: draft.referenceLinks?.map((item, at) => at === index ? { ...item, url } : item) })} maxLength={2000} keyboardType="url" autoCapitalize="none" autoCorrect={false} placeholder="https://…" placeholderTextColor={palette.placeholder} style={styles.input} />
+      </View>)}
+      {canEdit && (draft.referenceLinks?.length ?? 0) < 20 ? <Pressable accessibilityRole="button" onPress={() => setDraft({ ...draft, referenceLinks: [...(draft.referenceLinks ?? []), { label: '', url: '' }] })} style={styles.mapButton}><SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={18} tintColor={palette.ocean} /><Text style={styles.actionText}>リンクを追加</Text></Pressable> : null}
       <Text style={styles.label}>営業時間</Text><TextInput editable={canEdit} accessibilityLabel="営業時間" value={draft.openingHours} onChangeText={(openingHours) => setDraft({ ...draft, openingHours })} maxLength={500} placeholder="例：10:00–18:00 ／ 月曜休み" placeholderTextColor={palette.placeholder} style={styles.input} />
       <Text style={styles.label}>予約状況</Text><View style={styles.options}>{reservationStatuses.map((item) => <Pressable accessibilityRole="button" key={item.value} disabled={!canEdit} onPress={() => setDraft({ ...draft, reservationStatus: item.value })} style={[styles.option, draft.reservationStatus === item.value && styles.filterSelected]}><Text style={styles.optionText}>{item.label}</Text></Pressable>)}</View>
       <Text style={styles.label}>メモ</Text><TextInput editable={canEdit} accessibilityLabel="場所のメモ" value={draft.note} onChangeText={(note) => setDraft({ ...draft, note })} maxLength={4000} multiline placeholder="食べたいもの、見たい展示など" placeholderTextColor={palette.placeholder} style={[styles.input, styles.memo]} />
@@ -106,5 +122,6 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   cardFooter: { padding: 12, paddingHorizontal: 16, borderTopWidth: 1, borderStyle: 'dashed', borderColor: palette.ash, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, status: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, minHeight: 36, justifyContent: 'center', backgroundColor: palette.soft, borderRadius: 20 }, statusVisited: { backgroundColor: palette.success }, statusText: { color: palette.ink, fontSize: 12, fontWeight: '600' }, cardActions: { flexDirection: 'row', gap: 8 }, action: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 6, minHeight: 36, justifyContent: 'center' }, actionText: { color: palette.ocean, fontSize: 12, fontWeight: '600' },
   empty: { paddingVertical: 60, alignItems: 'center', gap: 24 }, emptyPlaceMark: { width: 96, height: 96, borderRadius: 48, backgroundColor: palette.sky, alignItems: 'center', justifyContent: 'center' }, emptyPlaceAdd: { position: 'absolute', right: 0, bottom: 0, width: 30, height: 30, borderRadius: 15, backgroundColor: palette.ocean, borderWidth: 3, borderColor: palette.canvas, alignItems: 'center', justifyContent: 'center' }, emptyTitle: { color: palette.slate, fontSize: 18, fontWeight: '600' }, primary: { paddingHorizontal: 20, paddingVertical: 15, backgroundColor: palette.ocean, borderRadius: 12 }, primaryText: { color: palette.onOcean, fontSize: 14, fontWeight: '700' },
   details: { gap: 24 }, detailTitle: { color: palette.ink, fontSize: 28, lineHeight: 38, fontWeight: '700' }, detailStatus: { flexDirection: 'row', alignItems: 'center', gap: 8 }, detailSection: { gap: 8 }, detailLabel: { color: palette.smoke, fontSize: 12, fontWeight: '600' }, detailValue: { color: palette.ink, fontSize: 16, lineHeight: 26 }, mapButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, borderRadius: 12, backgroundColor: palette.sky },
+  referenceFields: { gap: 8 }, referenceHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, removeLink: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, referenceButton: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, padding: 14, borderRadius: 12, backgroundColor: palette.sky }, referenceCopy: { flex: 1, minWidth: 0, gap: 4 }, referenceTitle: { color: palette.ocean, fontSize: 15, fontWeight: '600' }, referenceUrl: { color: palette.slate, fontSize: 12 },
   label: { color: palette.slate, fontSize: 13, fontWeight: '600', marginTop: 8 }, input: { minHeight: 52, padding: 16, borderRadius: 10, backgroundColor: palette.paper, color: palette.ink, fontSize: 16 }, memo: { minHeight: 110, textAlignVertical: 'top' }, hint: { fontSize: 12, color: palette.smoke, marginTop: -4 }, options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, option: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: palette.paper, borderRadius: 10 }, optionText: { color: palette.ink, fontSize: 13 }, delete: { minHeight: 48, justifyContent: 'center', alignItems: 'center', marginTop: 16 }, deleteText: { color: palette.danger, fontSize: 14 }, notice: { padding: 14, borderRadius: 10, backgroundColor: palette.sky }, noticeText: { color: palette.ink, fontSize: 13 },
 });

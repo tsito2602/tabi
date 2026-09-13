@@ -167,6 +167,13 @@ CREATE TABLE IF NOT EXISTS places (
 );
 CREATE INDEX IF NOT EXISTS places_trip ON places(trip_id, status, updated_at);
 
+-- Extend place metadata without rebuilding existing rows or their status constraint.
+CREATE TABLE IF NOT EXISTS place_details (
+  place_id TEXT PRIMARY KEY REFERENCES places(id) ON DELETE CASCADE,
+  reference_links TEXT NOT NULL DEFAULT '[]',
+  reservation_status TEXT CHECK(reservation_status IS NULL OR reservation_status = 'unavailable')
+);
+
 -- Add read-only membership without rebuilding the existing member table.
 CREATE TABLE IF NOT EXISTS trip_member_permissions (
   trip_id TEXT NOT NULL,
