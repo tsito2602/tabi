@@ -10,11 +10,12 @@ import { build } from 'esbuild';
 
 const dir = await mkdtemp(join(tmpdir(), 'tabi-connections-'));
 const require = createRequire(import.meta.url);
-for (const [name, entry] of [['connections', 'src/data/flight-connections.ts'], ['worker', 'worker/index.ts']]) {
+for (const [name, entry] of [['connections', 'src/data/flight-connections.ts'], ['worker', 'worker/index.ts'], ['duration', 'src/data/booking-duration.ts']]) {
   await build({ entryPoints: [entry], bundle: true, platform: 'node', format: 'cjs', outfile: join(dir, `${name}.cjs`), logLevel: 'silent' });
 }
 const { findFlightConnections, connectionBetween, flightConnectionCandidates, hasLikelyFlightConnection } = require(join(dir, 'connections.cjs'));
 const worker = require(join(dir, 'worker.cjs')).default;
+const { bookingDuration, bookingDurationLabel } = require(join(dir, 'duration.cjs'));
 after(() => rm(dir, { recursive: true, force: true }));
 const flight = (id, extra = {}) => ({ id, kind: 'flight', title: id, origin: '', destination: '', detail: '', confirmationCode: '', note: '', originCode: 'NRT', destinationCode: 'DXB', day: '2026-11-21', time: '22:20', endDay: '2026-11-22', endTime: '05:30', ...extra });
 const first = flight(randomUUID());
@@ -125,4 +126,29 @@ test('cycles cannot be constructed even from malformed flight timestamps', () =>
   const a = { ...first, originCode: 'DXB', destinationCode: 'DXB', day: '2026-11-22', time: '09:00', endTime: '05:00', connectionMode: 'manual', nextFlightId: second.id };
   const b = { ...second, originCode: 'DXB', destinationCode: 'DXB', time: '08:00', endTime: '06:00', connectionMode: 'manual', nextFlightId: first.id };
   assert.equal(findFlightConnections([a, b]).length, 1);
+});
+
+
+test('flight times exclude layovers and use airport offsets, summer time and calendar dates', () => {
+  assert.equal(bookingDuration(first).minutes, 730);
+  assert.equal(bookingDuration(second).minutes, 390);
+  assert.equal(bookingDurationLabel(first), '飛行時間 12時間10分');
+  assert.equal(bookingDuration({ ...second, day: '2026-07-22', endDay: '2026-07-22' }).minutes, 330);
+  assert.equal(bookingDuration(flight('west', { day: '2026-11-22', time: '00:30', endDay: '2026-11-21', endTime: '17:30', destinationCode: 'LAX' })).minutes, 600);
+  const spring = flight('spring', { originCode: 'JFK', destinationCode: 'LAX', day: '2026-03-08', time: '01:30', endDay: '2026-03-08', endTime: '04:30' });
+  assert.equal(bookingDuration(spring).minutes, 300);
+  assert.equal(bookingDuration({ ...spring, time: '02:30' }), null);
+  for (const extra of [{ originCode: 'ZZZ' }, { destinationCode: '' }, { time: '' }, { endTime: '25:00' }, { endDay: '2026-02-30' }, { endDay: first.day, endTime: '01:00' }]) assert.equal(bookingDuration({ ...first, ...extra }), null);
+});
+test('train times support overnight travel and explicit ticket durations for time-zone crossings', () => {
+  const train = { ...first, kind: 'train', time: '23:30', endTime: '06:15' };
+  assert.equal(bookingDuration(train).minutes, 405);
+  assert.equal(bookingDurationLabel(train), '乗車時間 6時間45分（時差なし）');
+  const ticketTime = { ...train, durationMinutes: 345 };
+  assert.deepEqual(bookingDuration(ticketTime), { minutes: 345, source: 'manual' });
+  assert.equal(bookingDurationLabel(ticketTime), '乗車時間 5時間45分');
+  assert.equal(bookingDuration({ ...ticketTime, durationMinutes: null }).minutes, 405);
+  assert.equal(bookingDuration({ ...first, originCode: 'ZZZ', durationMinutes: 120 }).minutes, 120);
+  for (const durationMinutes of [0, -1, 1.5, 10081]) assert.equal(bookingDuration({ ...first, durationMinutes }), null);
+  for (const kind of ['hotel', 'car', 'restaurant', 'ticket', 'other']) assert.equal(bookingDuration({ ...first, kind }), null);
 });

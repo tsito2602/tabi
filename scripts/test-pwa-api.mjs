@@ -392,3 +392,30 @@ test('plan categories and transport metadata survive sync, old clients and schem
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM itinerary_details WHERE item_id = ?').get(id).n, 0);
   } finally { db.close(); }
 });
+
+test('ticket journey times round-trip, survive old clients, reset to automatic, and stay trip-scoped', async () => {
+  const { db, call, trip } = await fixture();
+  try {
+    const base = `/trips/${trip.id}/bookings`, id = randomUUID();
+    const legacy = { id, kind: 'train', title: '国際列車', detail: '', origin: 'パリ', destination: 'ロンドン', originCode: '', destinationCode: '', day: '2026-11-21', time: '11:00', endDay: '2026-11-21', endTime: '12:20', confirmationCode: '', note: '' };
+    const read = async () => (await (await call(base)).json()).bookings.find((booking) => booking.id === id);
+    assert.equal((await call(base, 'POST', { ...legacy, durationMinutes: 140 })).status, 201);
+    assert.equal((await read()).durationMinutes, 140);
+    assert.equal((await call(`${base}/${id}`, 'PATCH', legacy)).status, 200);
+    assert.equal((await call(base, 'POST', legacy)).status, 201);
+    db.exec(await readFile('worker/schema.sql', 'utf8'));
+    assert.equal((await read()).durationMinutes, 140);
+    for (const durationMinutes of [0, -1, 1.5, 10081, '140']) assert.equal((await call(`${base}/${id}`, 'PATCH', { ...legacy, durationMinutes })).status, 400);
+    assert.equal((await call(`${base}/${id}`, 'PATCH', { ...legacy, durationMinutes: 100 }, 'outsider')).status, 403);
+    const other = { ...trip, id: randomUUID() };
+    assert.equal((await call('/trips', 'POST', other)).status, 201);
+    assert.equal((await call(`/trips/${other.id}/bookings`, 'POST', { ...legacy, durationMinutes: 100 })).status, 409);
+    assert.equal((await call(`/trips/${other.id}/bookings/${id}`, 'PATCH', { ...legacy, durationMinutes: 100 })).status, 404);
+    assert.equal((await read()).durationMinutes, 140);
+    assert.equal((await call(`${base}/${id}`, 'PATCH', { ...legacy, durationMinutes: null })).status, 200);
+    assert.equal((await read()).durationMinutes, null);
+    assert.equal((await call(`${base}/${id}`, 'PATCH', { ...legacy, kind: 'flight', originCode: 'NRT', destinationCode: 'LAX', day: '2026-11-22', time: '00:30', endDay: '2026-11-21', endTime: '17:30' })).status, 200);
+    assert.equal((await call(`${base}/${id}`, 'DELETE')).status, 204);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM booking_durations WHERE booking_id = ?').get(id).n, 0);
+  } finally { db.close(); }
+});

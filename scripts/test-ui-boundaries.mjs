@@ -90,6 +90,7 @@ test('reservation details retain file viewing but expose mutations only in editi
       '@/components/toast': { useToast: () => ({ show: noop }) },
       '@/components/copy-button': {}, '@/components/form-sheet': {}, '@/components/booking-route': {}, '@/components/date-range-picker': {},
       '@/constants/design': {}, '@/data/airports': {}, '@/data/booking-match': {},
+      '@/data/booking-duration': { bookingDurationLabel: () => '' },
       '@/data/booking-document-cache': { getCachedDocumentUri: () => null },
       '@/data/travel-provider': { useTravel: () => ({ canEdit }) },
       '@/utils/confirm-deletion': {}, '@/utils/dates': {},

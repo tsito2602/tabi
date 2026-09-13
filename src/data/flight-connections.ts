@@ -18,7 +18,7 @@ export type FlightConnection = {
   mode: 'auto' | 'manual';
 };
 
-function localDateTimeToEpoch(day: string, time: string, timeZone?: string) {
+export function localDateTimeToEpoch(day: string, time: string, timeZone?: string) {
   const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
   const timeMatch = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
   if (!dateMatch || !timeMatch) return null;

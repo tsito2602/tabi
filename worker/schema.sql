@@ -235,3 +235,9 @@ CREATE TABLE IF NOT EXISTS itinerary_details (
   item_id TEXT PRIMARY KEY REFERENCES itinerary_items(id) ON DELETE CASCADE,
   details TEXT
 );
+
+-- Optional ticket-specified journey time. Omission by old clients preserves it.
+CREATE TABLE IF NOT EXISTS booking_durations (
+  booking_id TEXT PRIMARY KEY REFERENCES bookings(id) ON DELETE CASCADE,
+  duration_minutes INTEGER
+);

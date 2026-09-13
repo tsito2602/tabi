@@ -1,3 +1,4 @@
+import { bookingDurationLabel } from '@/data/booking-duration';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { FileDrop, type DroppedFile } from './file-drop';
 import { type ComponentProps, type Dispatch, type SetStateAction, useRef, useState } from 'react';
@@ -31,7 +32,7 @@ export const BOOKING_KINDS: { value: BookingKind; label: string; short: string; 
   { value: 'other', label: 'その他', short: 'OTHER', icon: '＋' },
 ];
 
-type Draft = Pick<Booking, 'kind' | 'title' | 'detail' | 'location' | 'origin' | 'originCode' | 'destination' | 'destinationCode' | 'day' | 'time' | 'endDay' | 'endTime' | 'confirmationCode' | 'note'>;
+type Draft = Pick<Booking, 'kind' | 'title' | 'detail' | 'location' | 'origin' | 'originCode' | 'destination' | 'destinationCode' | 'day' | 'time' | 'endDay' | 'endTime' | 'confirmationCode' | 'note' | 'durationMinutes'>;
 
 function blankDraft(day: string, kind: BookingKind = 'flight'): Draft {
   const defaults: Record<BookingKind, [string, string]> = {
@@ -52,7 +53,7 @@ export function BookingSheet({ booking, onClose }: { booking?: Booking; onClose:
     origin: booking.origin, originCode: booking.originCode,
     destination: booking.destination, destinationCode: booking.destinationCode,
     day: booking.day, time: booking.time, endDay: booking.endDay, endTime: booking.endTime,
-    confirmationCode: booking.confirmationCode, note: booking.note,
+    confirmationCode: booking.confirmationCode, note: booking.note, durationMinutes: booking.durationMinutes ?? null,
   } : blankDraft(selectedTrip?.startsOn ?? ''));
   const [initialDraft, setInitialDraft] = useState(() => JSON.stringify(draft));
   const [viewing, setViewing] = useState(Boolean(booking));
@@ -63,6 +64,7 @@ export function BookingSheet({ booking, onClose }: { booking?: Booking; onClose:
   const selectedMergeItem = matchingCandidate?.item.id === mergeItemId ? matchingCandidate.item : null;
 
   const save = async () => {
+    if (draft.durationMinutes != null && (!Number.isInteger(draft.durationMinutes) || draft.durationMinutes < 1 || draft.durationMinutes > 10080)) { setFormError('乗っている時間は1〜10080分で入力してください'); return; }
     const needsRoute = ['flight', 'train', 'car'].includes(draft.kind);
     if (!draft.title.trim() || !validDate(draft.day) || (needsRoute && (!(draft.origin.trim() || draft.originCode) || !(draft.destination.trim() || draft.destinationCode)))) {
       setFormError(needsRoute ? '予約名、日付、出発地と到着地を入力してください' : '予約名と日付を入力してください');
@@ -72,11 +74,11 @@ export function BookingSheet({ booking, onClose }: { booking?: Booking; onClose:
       setFormError('時刻は24時間表記（例 09:30）で入力してください。');
       return;
     }
-    if (draft.endDay && (!validDate(draft.endDay) || draft.endDay < draft.day)) {
+    if (draft.endDay && (!validDate(draft.endDay) || (draft.kind !== 'flight' && draft.endDay < draft.day))) {
       setFormError('終了日は開始日以降を選択してください。');
       return;
     }
-    if (draft.kind !== 'flight' && draft.endDay === draft.day && draft.time && draft.endTime && draft.endTime < draft.time) {
+    if (draft.kind !== 'flight' && !(draft.kind === 'train' && draft.durationMinutes) && draft.endDay === draft.day && draft.time && draft.endTime && draft.endTime < draft.time) {
       setFormError('終了時刻は開始時刻以降にしてください');
       return;
     }
@@ -134,6 +136,11 @@ export function BookingSheet({ booking, onClose }: { booking?: Booking; onClose:
               </View>
 
               <BookingFormFields draft={draft} setDraft={setDraft} />
+              {draft.kind === 'flight' || draft.kind === 'train' ? <View>
+                {bookingDurationLabel({ ...draft, durationMinutes: null }) ? <Text style={styles.placeName}>{bookingDurationLabel({ ...draft, durationMinutes: null })}</Text> : null}
+                <Field label={draft.kind === 'flight' ? '飛行時間（分・任意）' : '乗車時間（分・任意）'} inputMode="numeric" maxLength={5} placeholder="空欄なら出発・到着日時から計算" value={draft.durationMinutes == null ? '' : String(draft.durationMinutes)} onChangeText={(value) => setDraft((current) => ({ ...current, durationMinutes: value ? Number(value) : null }))} />
+                <Text style={styles.placeName}>{draft.kind === 'flight' ? '空港が未登録の場合は、航空券の飛行時間を入力できます。' : '時差をまたぐ列車は、乗車券に記載された時間を入力してください。'}</Text>
+              </View> : null}
               {matchingCandidate ? <View style={[styles.matchCard, selectedMergeItem && styles.matchCardSelected]}>
                 <View style={styles.matchCopy}>
                   <Text style={styles.matchEyebrow}>{matchingCandidate.reason}</Text>
@@ -172,6 +179,7 @@ function BookingDetails({ booking, documents }: { booking: Booking; documents: B
         <View style={styles.dateColumn}><Text style={styles.label}>{booking.kind === 'hotel' ? 'チェックイン' : route ? '出発' : '開始'}</Text><Text style={styles.detailTime}>{booking.time || '時刻未定'}</Text><Text style={styles.placeName}>{formatDate(booking.day, true)}</Text></View>
         {booking.endDay && (booking.endDay !== booking.day || booking.endTime !== booking.time) ? <View style={styles.dateColumn}><Text style={styles.label}>{booking.kind === 'hotel' ? 'チェックアウト' : route ? '到着' : '終了'}</Text><Text style={styles.detailTime}>{booking.endTime || '時刻未定'}</Text><Text style={styles.placeName}>{formatDate(booking.endDay, true)}</Text></View> : null}
       </View>
+      {bookingDurationLabel(booking) ? <Text style={styles.journeyDuration}>{bookingDurationLabel(booking)}</Text> : null}
       {booking.kind === 'flight' ? <Text style={styles.placeName}>時刻は各空港の現地時刻</Text> : null}
     </View>
     {hasLocation ? <View style={styles.locationBlock}>
@@ -424,6 +432,7 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   confirmation: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20, borderRadius: 16, backgroundColor: palette.sky },
   confirmationCopy: { flex: 1 },
   confirmationCode: { color: palette.ink, fontSize: 21, fontWeight: '700', marginTop: 8 },
+  journeyDuration: { color: palette.ocean, fontSize: 14, lineHeight: 22, fontWeight: '600', marginTop: 12 },
   detailBody: { fontSize: 15, color: palette.ink, lineHeight: 24 },
   locationBlock: { gap: 12 },
   locationHint: { color: palette.smoke, fontSize: 11, lineHeight: 17 },

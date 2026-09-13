@@ -1,3 +1,4 @@
+import { bookingDurationLabel } from '@/data/booking-duration';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { PageHeading } from '@/components/page-heading';
 import { useTripHeaderHeight } from '@/components/trip-header-context';
@@ -83,6 +84,7 @@ function TripBookingsScreen() {
                     {hasRoute ? <BookingRoute booking={booking} compact /> : detail ? <Text numberOfLines={2} style={styles.detail}>{detail}</Text> : null}
                     {hasRoute && booking.detail ? <Text numberOfLines={1} style={styles.detail}>{booking.detail}</Text> : null}
                     <Text style={styles.meta}>{formatDate(booking.day)}　{booking.time}{booking.endDay !== booking.day ? ` → ${formatDate(booking.endDay)}` : booking.endTime && booking.endTime !== booking.time ? ` – ${booking.endTime}` : ''}</Text>
+                    {bookingDurationLabel(booking) ? <Text style={styles.meta}>{bookingDurationLabel(booking)}</Text> : null}
                   </View>
                   <View testID="ticket-stub" style={styles.stub}>
                     <Text style={styles.icon}>{kind.icon}</Text>

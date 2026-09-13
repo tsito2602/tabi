@@ -53,6 +53,7 @@ export type Booking = {
   time: string;
   endDay: string;
   endTime: string;
+  durationMinutes?: number | null;
   confirmationCode: string;
   note: string;
   connectionMode?: FlightConnectionMode;
