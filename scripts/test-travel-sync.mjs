@@ -308,3 +308,36 @@ test('notes persist offline, reopen and delete without affecting another trip', 
     assert.ok(next);
   } finally { f.close(); }
 });
+
+test('category and transport metadata persist offline, enqueue and survive local edits', async () => {
+  const gate = deferred();
+  const f = await fixture({ transport: async (path, init) => init.method ? gate.promise : undefined });
+  try {
+    const details = { category: 'transport', location: '', endDay: '', endTime: '', transport: { mode: 'walk', origin: 'ホテル', destination: '美術館', durationMinutes: 20 } };
+    const id = f.api.createItem({ day: trip.startsOn, time: '', kind: '予定', title: '朝の散歩', note: '', details });
+    f.api.updateItem(id, { day: trip.startsOn, time: '09:00', kind: '予定', title: '朝の散歩', note: '入口で集合', details });
+    const saved = f.writes.at(-1);
+    assert.deepEqual(saved.itemsByTrip.trip.find((item) => item.id === id).details, details);
+    assert.deepEqual(saved.pending.filter((entry) => entry.path.includes('/items')).map((entry) => entry.body.details), [details, details]);
+    const restored = await fixture({ stored: saved, isDemo: true });
+    try { assert.deepEqual(restored.api.items.find((item) => item.id === id).details, details); } finally { restored.close(); }
+  } finally { gate.resolve({}); f.close(); }
+});
+
+test('transport ordering and durations handle untimed, overnight and removed preceding plans', async () => {
+  const { outputFiles } = await build({ entryPoints: ['src/data/itinerary.ts'], bundle: true, write: false, platform: 'node', format: 'cjs', logLevel: 'silent' });
+  const module = { exports: {} };
+  new Function('module', 'exports', outputFiles[0].text)(module, module.exports);
+  const { orderItineraryEntries, durationMinutes, itemDetails } = module.exports;
+  const a = { key: 'item-a', day: '2026-11-21', time: '' };
+  const b = { key: 'item-b', day: a.day, time: '' };
+  const details = { category: 'transport', location: '', endDay: '', endTime: '', transport: { mode: 'walk', origin: 'A', destination: 'B', durationMinutes: 20, afterKey: a.key } };
+  const move = { key: 'item-c', day: a.day, time: '', item: { day: a.day, time: '', details } };
+  assert.deepEqual(orderItineraryEntries([b, move, a]).map((entry) => entry.key), ['item-a', 'item-c', 'item-b']);
+  assert.deepEqual(orderItineraryEntries([b, move]).map((entry) => entry.key), ['item-b', 'item-c']);
+  assert.equal(durationMinutes(a.day, '', details), 20);
+  assert.equal(durationMinutes(a.day, '23:40', { ...details, endDay: '2026-11-22', endTime: '06:10' }), 390);
+  assert.equal(durationMinutes(a.day, '23:40', { ...details, endDay: a.day, endTime: '06:10' }), undefined);
+  assert.equal(itemDetails({ kind: '予定' }).category, 'other');
+  assert.equal(itemDetails({ kind: '観光' }).category, 'sightseeing');
+});

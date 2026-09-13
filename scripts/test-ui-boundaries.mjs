@@ -119,6 +119,8 @@ test('place itinerary actions follow actual additions across every status and pr
       '@/components/place-sheet': { PlaceSheet: () => null }, '@/components/date-range-picker': {},
       '@/components/toast': { useToast: () => noop },
       '@/components/trip-header-context': { useTripHeaderHeight: () => 0 },
+      '@/components/itinerary-fields': { ItineraryCategoryPicker: () => null },
+      '@/data/itinerary': load('src/data/itinerary.ts', {}),
       '@/data/travel-provider': { useTravel: () => ({ canEdit, places: [{ id: 'place', title: '美術館', note: '', location: '', status, reservationStatus: 'not_needed', itineraryItemId: 'plan' }], items: added ? [{ id: 'plan', day: '2026-11-23' }] : [] }) },
     }).default;
     const html = renderToStaticMarkup(React.createElement(Screen));
@@ -141,6 +143,8 @@ test('shared place sheet shows current source details from either entry point an
       '@/components/toast': { useToast: () => noop },
       '@/utils/confirm-deletion': {},
       '@/components/form-sheet': { FormSheet: (props) => { sheetProps = props; return React.createElement('section', null, props.children); } },
+      '@/components/itinerary-fields': { ItineraryCategoryPicker: () => null },
+      '@/data/itinerary': load('src/data/itinerary.ts', {}),
       '@/data/travel-provider': { useTravel: () => ({ canEdit, places: [place], items: [{ id: 'plan', day: '2026-11-23', time: '' }] }) },
     });
     const html = renderToStaticMarkup(React.createElement(PlaceSheet, { place: { ...place, note: '古いメモ' }, onClose: noop, ...(fromItinerary ? { onEditSchedule: noop } : { onPlan: noop }) }));

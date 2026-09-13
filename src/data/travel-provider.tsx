@@ -12,7 +12,7 @@ import { connectionBetween, createsFlightConnectionCycle } from './flight-connec
 import { Booking, BookingDocument, emptyTravelCache, ItineraryItem, PackingItem, PendingMutation, Place, PlaceInput, TravelCache, TravelTask, Trip, TripMember, TravelNote, NoteInput } from './types';
 
 type TripInput = Pick<Trip, 'name' | 'destination' | 'startsOn' | 'endsOn' | 'coverImage'>;
-type ItemInput = Pick<ItineraryItem, 'day' | 'time' | 'kind' | 'title' | 'note'>;
+type ItemInput = Pick<ItineraryItem, 'day' | 'time' | 'kind' | 'title' | 'note' | 'details'>;
 type BookingInput = Pick<Booking, 'kind' | 'title' | 'detail' | 'location' | 'origin' | 'originCode' | 'destination' | 'destinationCode' | 'day' | 'time' | 'endDay' | 'endTime' | 'confirmationCode' | 'note'>;
 type PackingInput = Pick<PackingItem, 'name' | 'category' | 'quantity' | 'packed' | 'assignee' | 'shared'>;
 type TaskInput = Pick<TravelTask, 'title' | 'dueOn' | 'assignee' | 'done'>;

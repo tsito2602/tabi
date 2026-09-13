@@ -13,6 +13,16 @@ export type Trip = {
   updatedAt?: number;
 };
 
+export type ItineraryCategory = 'sightseeing' | 'meal' | 'transport' | 'shopping' | 'other';
+export type TransportMode = 'walk' | 'train' | 'bus' | 'car' | 'taxi' | 'flight' | 'boat' | 'other';
+export type ItineraryDetails = {
+  category: ItineraryCategory;
+  location: string;
+  endDay: string;
+  endTime: string;
+  transport?: { mode: TransportMode; origin: string; destination: string; durationMinutes?: number; afterKey?: string };
+};
+
 export type ItineraryItem = {
   id: string;
   day: string;
@@ -20,6 +30,7 @@ export type ItineraryItem = {
   kind: string;
   title: string;
   note: string;
+  details?: ItineraryDetails;
   updatedBy?: string;
   updatedAt?: number;
 };

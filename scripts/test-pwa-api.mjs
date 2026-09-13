@@ -360,3 +360,35 @@ test('travel notes preserve text, replay safely and enforce trip permissions', a
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM travel_notes').get().n, 0);
   } finally { db.close(); }
 });
+
+test('plan categories and transport metadata survive sync, old clients and schema reruns', async () => {
+  const { db, call, trip } = await fixture();
+  try {
+    const base = `/trips/${trip.id}/items`, id = randomUUID();
+    const legacy = { id, day: '2026-11-21', time: '23:40', kind: '予定', title: '夜行バス', note: '2番乗り場' };
+    const read = async () => (await (await call(base)).json()).items.find((item) => item.id === id);
+    assert.equal((await call(base, 'POST', legacy)).status, 201);
+    assert.equal((await read()).details, undefined);
+    const details = { category: 'transport', location: '', endDay: '2026-11-22', endTime: '06:10', transport: { mode: 'bus', origin: '駅前', destination: '中央駅', durationMinutes: 390 } };
+    assert.equal((await call(`${base}/${id}`, 'PATCH', { ...legacy, details })).status, 200);
+    assert.deepEqual((await read()).details, details);
+    assert.equal((await call(`${base}/${id}`, 'PATCH', { ...legacy, note: '変更' }, 'editor')).status, 200);
+    assert.equal((await call(base, 'POST', legacy)).status, 201);
+    db.exec(await readFile('worker/schema.sql', 'utf8'));
+    assert.deepEqual((await read()).details, details);
+    for (const invalid of [null, { ...details, category: 'unknown' }, { ...details, endDay: '2026-11-21' }, { ...details, endTime: '25:00' }, { ...details, transport: { ...details.transport, mode: 'teleport' } }, { ...details, transport: { ...details.transport, durationMinutes: -1 } }, { ...details, transport: { ...details.transport, durationMinutes: 1.5 } }]) {
+      assert.equal((await call(`${base}/${id}`, 'PATCH', { ...legacy, details: invalid })).status, 400);
+    }
+    assert.equal((await call(`${base}/${id}`, 'PATCH', { ...legacy, details }, 'outsider')).status, 403);
+    const other = { ...trip, id: randomUUID() };
+    assert.equal((await call('/trips', 'POST', other)).status, 201);
+    assert.equal((await call(`/trips/${other.id}/items`, 'POST', { ...legacy, details: { category: 'meal', location: 'カフェ', endDay: '', endTime: '' } })).status, 409);
+    assert.deepEqual((await read()).details, details);
+    assert.equal((await call(`/trips/${other.id}/items/${id}`, 'PATCH', { ...legacy, details })).status, 404);
+    const meal = { category: 'meal', location: 'カフェ', endDay: '', endTime: '' };
+    assert.equal((await call(`${base}/${id}`, 'PATCH', { ...legacy, time: '', details: meal })).status, 200);
+    assert.deepEqual((await read()).details, meal);
+    assert.equal((await call(`${base}/${id}`, 'DELETE')).status, 204);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM itinerary_details WHERE item_id = ?').get(id).n, 0);
+  } finally { db.close(); }
+});

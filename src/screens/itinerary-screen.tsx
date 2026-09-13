@@ -5,6 +5,8 @@ import { useToast } from '@/components/toast';
 import { useTripHero } from '@/components/trip-hero';
 import { useTripHeaderHeight } from '@/components/trip-header-context';
 import { BookingSheet } from '@/components/booking-sheet';
+import { ItineraryCategoryPicker, ItineraryFields } from '@/components/itinerary-fields';
+import { durationLabel, durationMinutes, emptyItineraryDetails, orderItineraryEntries, itemCategory, itemDetails, itemEndLabel, itineraryDetailsError, transportLabel, transportModes } from '@/data/itinerary';
 import { PlaceSheet } from '@/components/place-sheet';
 import { SymbolView } from 'expo-symbols';
 import { useLocalSearchParams } from 'expo-router';
@@ -20,7 +22,7 @@ import { FlightConnectionLink, FlightConnectionSheet } from '@/components/flight
 import { mono, type Palette } from '@/constants/design';
 import { findAirportByCode } from '@/data/airports';
 import { findFlightConnections, hasLikelyFlightConnection, formatConnectionDuration, type FlightConnection } from '@/data/flight-connections';
-import type { Booking, BookingKind, ItineraryItem } from '@/data/types';
+import type { Booking, BookingKind, ItineraryItem, ItineraryDetails } from '@/data/types';
 import { useTravel } from '@/data/travel-provider';
 import { confirmDeletion } from '@/utils/confirm-deletion';
 
@@ -46,7 +48,6 @@ const BOOKING_ICONS: Record<BookingKind, SymbolName> = {
   other: { ios: 'bookmark.fill', android: 'bookmark', web: 'bookmark' },
 };
 
-const PLAN_ICON: SymbolName = { ios: 'mappin', android: 'location_on', web: 'location_on' };
 const EMPTY_ICON: SymbolName = { ios: 'calendar', android: 'calendar_today', web: 'calendar_today' };
 const CONNECTION_ICON: SymbolName = { ios: 'clock', android: 'schedule', web: 'schedule' };
 
@@ -196,6 +197,8 @@ export default function ItineraryScreen() {
   const [time, setTime] = useState('10:00');
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
+  const [planDetails, setPlanDetails] = useState<ItineraryDetails>(emptyItineraryDetails());
+  const moving = planDetails.category === 'transport';
   const scrollRef = useRef<ScrollView>(null);
   const dateScrollRef = useRef<ScrollView>(null);
   const dateTabOffsets = useRef<Record<string, { x: number; width: number }>>({});
@@ -208,10 +211,10 @@ export default function ItineraryScreen() {
   const flightConnections = useMemo(() => findFlightConnections(bookings), [bookings]);
   const connectionByArrival = useMemo(() => new Map(flightConnections.map((connection) => [connection.arrivalBookingId, connection])), [flightConnections]);
 
-  const timeline = [
+  const timeline = orderItineraryEntries([
     ...items.map<TimelineEntry>((item) => ({ key: `item-${item.id}`, day: item.day, time: item.time, title: places.find((place) => place.itineraryItemId === item.id)?.title ?? item.title, note: item.note, item })),
     ...bookings.flatMap(bookingTimelineEntries),
-  ].sort((left, right) => left.day.localeCompare(right.day) || left.time.localeCompare(right.time) || left.key.localeCompare(right.key));
+  ]);
   // Continue a layover rail only when the next visible event is that flight.
   // A manually selected later departure must not appear attached to an
   // unrelated flight or plan that falls between the two endpoints.
@@ -284,15 +287,20 @@ export default function ItineraryScreen() {
     if (visibleDay && visibleDay !== visibleActiveDay) setActiveDay(visibleDay);
   };
 
-  const openAdd = () => {
+  const openAdd = (between?: { from: TimelineEntry; to: TimelineEntry }) => {
     if (!selectedTrip) return;
     setViewingItemId(null);
     setEditingId(null);
-    setDay(visibleActiveDay || selectedTrip.startsOn);
-    setTime('10:00');
+    const startDay = between?.from.day || visibleActiveDay || selectedTrip.startsOn;
+    const startTime = between ? (between.from.item ? itemDetails(between.from.item).endDay && itemDetails(between.from.item).endDay !== startDay ? '' : itemDetails(between.from.item).endTime || between.from.time : between.from.time) : '10:00';
+    const endpoint = (entry: TimelineEntry) => entry.item ? places.find((place) => place.itineraryItemId === entry.item!.id)?.title || itemDetails(entry.item).location || entry.title : entry.bookingEndpoint === 'end' ? entry.booking?.destination || entry.booking?.location || entry.title : entry.booking?.origin || entry.booking?.location || entry.title;
+    const details: ItineraryDetails = between ? { ...emptyItineraryDetails('transport'), transport: { mode: 'walk', origin: endpoint(between.from), destination: endpoint(between.to), afterKey: between.from.key } } : emptyItineraryDetails();
+    setDay(startDay);
+    setTime(startTime);
+    setPlanDetails(details);
     setTitle('');
     setNote('');
-    setInitialDraft(JSON.stringify([visibleActiveDay || selectedTrip.startsOn, '10:00', '', '']));
+    setInitialDraft(JSON.stringify([startDay, startTime, '', '', details]));
     setFormError('');
     setAdding(true);
   };
@@ -300,11 +308,12 @@ export default function ItineraryScreen() {
   const openEdit = (item: ItineraryItem) => {
     setEditingId(item.id);
     setDay(item.day);
-    const editTime = places.some((place) => place.itineraryItemId === item.id) ? item.time : item.time || '10:00';
+    const editTime = item.time;
     setTime(editTime);
     setTitle(item.title);
     setNote(item.note);
-    setInitialDraft(JSON.stringify([item.day, editTime, item.title, item.note]));
+    setPlanDetails(itemDetails(item));
+    setInitialDraft(JSON.stringify([item.day, editTime, item.title, item.note, itemDetails(item)]));
     setFormError('');
     setAdding(true);
   };
@@ -315,12 +324,16 @@ export default function ItineraryScreen() {
   };
 
   const save = () => {
-    if (!title.trim() || !validDate(day) || (!(editingPlace && time === '') && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))) {
-      setFormError('日付、時刻、予定名を入力してください');
+    const savedTitle = title.trim() || (moving ? [planDetails.transport?.origin, planDetails.transport?.destination].filter(Boolean).join(' → ') || `${transportLabel(planDetails)}で移動` : '');
+    if (!savedTitle || !validDate(day) || !/^([01]\d|2[0-3]):[0-5]\d$|^$/.test(time)) {
+      setFormError('日付、予定名、正しい時刻を入力してください');
       return;
     }
+    const details: ItineraryDetails = { ...planDetails, ...(moving ? { location: '', transport: planDetails.transport ?? { mode: 'walk', origin: '', destination: '' } } : { transport: undefined }) };
+    const error = itineraryDetailsError(day, time, details) || (details.endDay && !details.endTime ? '終了・到着時刻を入力するか、日時を外してください' : '');
+    if (error) { setFormError(error); return; }
     const originalItem = items.find((item) => item.id === editingId);
-    const input = editingPlace && originalItem ? { ...originalItem, day, time } : { day, time, kind: '予定', title: title.trim(), note: note.trim() };
+    const input = editingPlace && originalItem ? { ...originalItem, day, time, details } : { day, time, kind: '予定', title: savedTitle.slice(0, 160), note: note.trim(), details };
     if (editingId) updateItem(editingId, input);
     else createItem(input);
     closeEditor(); toast('予定を保存しました');
@@ -386,23 +399,30 @@ export default function ItineraryScreen() {
               </View>
               {dateItems.length ? <View>
                   {dateItems.map((entry, entryIndex) => {
-                    const details = bookingDetails(entry);
+                    const details = entry.item ? [itemCategory(entry.item).label, ...(itemDetails(entry.item).location ? [itemDetails(entry.item).location] : [])] : bookingDetails(entry);
+                    const isTransport = entry.item && itemDetails(entry.item).category === 'transport';
+                    const previous = dateItems[entryIndex - 1], next = dateItems[entryIndex + 1];
+                    const previousTransport = previous?.item && itemDetails(previous.item).category === 'transport';
+                    const nextTransport = next?.item && itemDetails(next.item).category === 'transport';
+                    const category = entry.item ? itemCategory(entry.item) : undefined;
                     const isLinkedStart = entry.bookingEndpoint === 'start' && Boolean(entry.booking?.endTime);
                     const isLinkedEnd = entry.bookingEndpoint === 'end';
                     const connection = isLinkedEnd && entry.booking ? connectionByArrival.get(entry.booking.id) : undefined;
                     const isConnectedDeparture = entry.bookingEndpoint === 'start' && Boolean(entry.booking && connectedDepartures.has(entry.booking.id));
                     return (
                     <Fragment key={entry.key}>
-                    <Pressable
+                    {isTransport ? <TransportRow item={entry.item!} hasPrevious={Boolean(previous)} hasNext={Boolean(next)} onPress={() => setViewingItemId(entry.item!.id)} /> : <Pressable
                       accessibilityHint={entry.booking ? '予約の詳細を開きます' : '予定の詳細を開きます'}
                       accessibilityRole="button"
                       onPress={() => entry.booking ? setViewingBookingId(entry.booking.id) : setViewingItemId(entry.item!.id)}
                       style={({ pressed }) => [styles.itemRow, (isLinkedStart || isLinkedEnd) && styles.linkedBookingRow, pressed && styles.itemPressed]}>
                       <View style={styles.timeColumn}>
                         <Text style={styles.time}>{entry.time || '—'}</Text>
-                        <Text style={styles.timeZone}>{timeZoneLabel(entry)}</Text>
+                        <Text style={styles.timeZone}>{entry.item ? itemEndLabel(entry.item) ? `〜 ${itemEndLabel(entry.item)}` : '' : timeZoneLabel(entry)}</Text>
                       </View>
                       <View style={styles.railColumn}>
+                        {previousTransport ? <View style={[styles.connectionRail, styles.railTop]} /> : null}
+                        {nextTransport ? <View style={[styles.connectionRail, styles.railBottom]} /> : null}
                         {isLinkedEnd ? <View style={[styles.rail, styles.railTop, styles.linkedRail]} /> : isConnectedDeparture ? <View style={[styles.connectionRail, styles.railTop]} /> : null}
                         {isLinkedStart ? <View style={[styles.rail, styles.railBottom, styles.linkedRail]} /> : null}
                         {connection ? <View style={[styles.connectionRail, styles.railBottom]} /> : null}
@@ -410,19 +430,20 @@ export default function ItineraryScreen() {
                           <SymbolView
                             name={entry.booking?.kind === 'flight'
                               ? isLinkedEnd ? { ios: 'airplane.arrival', android: 'flight_land', web: 'flight_land' } : { ios: 'airplane.departure', android: 'flight_takeoff', web: 'flight_takeoff' }
-                              : entry.booking ? BOOKING_ICONS[entry.booking.kind] : PLAN_ICON}
+                              : entry.booking ? BOOKING_ICONS[entry.booking.kind] : { ios: category!.ios, android: category!.icon, web: category!.icon } as SymbolName}
                             size={21}
                             weight="semibold"
                             tintColor={entry.booking && !isLinkedEnd ? palette.paper : palette.ocean}
                           />
                         </View>
                       </View>
-                      <View style={[styles.itemCopy, entryIndex < dateItems.length - 1 && styles.itemDivider]}>
+                      <View style={[styles.itemCopy, entryIndex < dateItems.length - 1 && !nextTransport && styles.itemDivider]}>
                         <Text style={styles.itemTitle}>{entryTitle(entry)}</Text>
                         {details.map((detail, index) => <Text key={`${entry.key}-detail-${index}`} style={[styles.note, index === 0 && styles.bookingTag]}>{detail}</Text>)}
                       </View>
                       <Text style={styles.chevron}>›</Text>
-                    </Pressable>
+                    </Pressable>}
+                    {canEdit && next && !isTransport && !nextTransport && !(entry.booking && entry.booking.id === next.booking?.id) && !connection ? <Pressable accessibilityRole="button" accessibilityLabel={`${entry.title}と${next.title}の間に移動を追加`} onPress={() => openAdd({ from: entry, to: next })} style={styles.insertTransport}><Text style={styles.insertTransportText}>＋ 移動</Text></Pressable> : null}
                     {connection ? <ConnectionRow disabled={!canEdit} connection={connection} continueRail={connectedDepartures.has(connection.departureBookingId)} nextFlight={bookings.find((flight) => flight.id === connection.departureBookingId)} onPress={() => setConnectionBookingId(connection.arrivalBookingId)} />
                       : canEdit && isLinkedEnd && entry.booking?.kind === 'flight' && hasLikelyFlightConnection(entry.booking, bookings)
                         ? <View style={styles.connectionAction}><FlightConnectionLink compact booking={entry.booking} onPress={() => setConnectionBookingId(entry.booking!.id)} /></View> : null}
@@ -441,35 +462,64 @@ export default function ItineraryScreen() {
         </View>
       </ScrollView>
 
-      {selectedTrip && canEdit ? <FloatingAddButton label="予定を追加する" onPress={openAdd} /> : null}
+      {selectedTrip && canEdit ? <FloatingAddButton label="予定を追加する" onPress={() => openAdd()} /> : null}
       {connectionBookingId ? <FlightConnectionSheet bookingId={connectionBookingId} onClose={() => setConnectionBookingId(null)} /> : null}
 
       {viewingBooking ? <BookingSheet key={`${selectedTrip?.id}:${viewingBooking.id}`} booking={viewingBooking} onClose={() => setViewingBookingId(null)} /> : null}
 
       {isViewingItem && viewingPlace ? <PlaceSheet key={viewingPlace.id} place={viewingPlace} onClose={() => setViewingItemId(null)} onEditSchedule={() => openEdit(viewingItem!)} /> : null}
 
-      <FormSheet visible={adding || (Boolean(viewingItem) && !viewingPlace)} presentation={isViewingItem ? 'detail' : 'form'} title={isViewingItem ? '予定の詳細' : editingPlace ? '日時を編集' : editingId ? '予定を編集' : '予定を追加'} onClose={() => { if (isViewingItem) setViewingItemId(null); else closeEditor(); }} onSave={canEdit ? isViewingItem ? () => openEdit(viewingItem!) : save : undefined} saveLabel={isViewingItem ? '編集' : '保存'} canSave={isViewingItem || Boolean(title.trim())} dirty={!isViewingItem && JSON.stringify([day, time, title, note]) !== initialDraft} error={isViewingItem ? undefined : formError}>
+      <FormSheet visible={adding || (Boolean(viewingItem) && !viewingPlace)} presentation={isViewingItem ? 'detail' : 'form'} title={isViewingItem ? '予定の詳細' : editingPlace ? '予定を編集' : editingId ? '予定を編集' : '予定を追加'} onClose={() => { if (isViewingItem) setViewingItemId(null); else closeEditor(); }} onSave={canEdit ? isViewingItem ? () => openEdit(viewingItem!) : save : undefined} saveLabel={isViewingItem ? '編集' : '保存'} canSave={isViewingItem || moving || Boolean(title.trim())} dirty={!isViewingItem && JSON.stringify([day, time, title, note, planDetails]) !== initialDraft} error={isViewingItem ? undefined : formError}>
         {isViewingItem && viewingItem ? <View testID="itinerary-item-details" style={styles.planDetails}>
+          <Text style={styles.bookingTag}>{itemCategory(viewingItem).label}</Text>
           <Text selectable style={styles.planTitle}>{viewingItem.title}</Text>
           <View style={styles.planDate}>
             <SymbolView name={{ ios: 'calendar', android: 'calendar_today', web: 'calendar_today' }} size={20} tintColor={palette.ocean} />
-            <Text style={styles.planDateText}>{viewingItem.day.replaceAll('-', '/')}　{viewingItem.time || '時刻未定'}</Text>
+            <Text style={styles.planDateText}>{viewingItem.day.replaceAll('-', '/')}　{viewingItem.time || '時刻未定'}{itemEndLabel(viewingItem) ? ` 〜 ${itemEndLabel(viewingItem)}` : ''}</Text>
           </View>
+          {itemDetails(viewingItem).category === 'transport' ? <View style={styles.planNote}>
+            <Text style={styles.planDateText}>{transportLabel(itemDetails(viewingItem))}　{durationLabel(durationMinutes(viewingItem.day, viewingItem.time, itemDetails(viewingItem)))}</Text>
+            <Text selectable style={styles.planNoteText}>出発　{itemDetails(viewingItem).transport?.origin || '未定'}</Text>
+            <Text selectable style={styles.planNoteText}>到着　{itemDetails(viewingItem).transport?.destination || '未定'}</Text>
+          </View> : itemDetails(viewingItem).location ? <Text selectable style={styles.planNoteText}>{itemDetails(viewingItem).location}</Text> : null}
           {viewingItem.note ? <View style={styles.planNote}>
             <Text style={styles.label}>メモ</Text>
             <Text selectable style={styles.planNoteText}>{viewingItem.note}</Text>
           </View> : null}
         </View> : <>
-            <DateRangePicker mode="single" showTime label="日時" startDate={day} endDate={day} startTime={time} onChange={(range) => { setDay(range.startDate); setTime(range.startTime); }} />
+            <ItineraryCategoryPicker value={planDetails.category} linkedPlace={Boolean(editingPlace)} onChange={(category) => setPlanDetails((current) => ({ ...current, category, ...(category === 'transport' ? { transport: current.transport ?? { mode: 'walk', origin: '', destination: '' } } : {}) }))} />
+            <View style={{ marginTop: 18 }}><DateRangePicker mode="single" showTime label={moving ? '出発' : '開始'} startDate={day} endDate={day} startTime={time} onChange={(range) => { setDay(range.startDate); setTime(range.startTime); }} /></View>
+            {moving || editingPlace ? <ItineraryFields day={day} time={time} details={planDetails} onChange={setPlanDetails} linkedPlace={Boolean(editingPlace)} /> : null}
             {editingPlace ? <Text style={styles.planDateText}>{editingPlace.title}</Text> : <>
-            <Text style={styles.label}>予定</Text><TextInput accessibilityLabel="予定名" maxLength={160} value={title} onChangeText={setTitle} placeholder="空港へ移動" placeholderTextColor={palette.placeholder} style={styles.input} autoFocus />
-            <Text style={styles.label}>メモ</Text><TextInput accessibilityLabel="メモ" maxLength={4000} value={note} onChangeText={setNote} placeholder="集合場所や予約番号など" placeholderTextColor={palette.placeholder} style={[styles.input, styles.noteInput]} multiline />
+            <Text style={styles.label}>{moving ? '移動名（任意）' : '予定'}</Text><TextInput accessibilityLabel="予定名" maxLength={160} value={title} onChangeText={setTitle} placeholder={moving ? '例：空港行きのバス' : planDetails.category === 'meal' ? 'ランチ・夕食など' : planDetails.category === 'shopping' ? 'おみやげを買う' : '美術館を訪れる'} placeholderTextColor={palette.placeholder} style={styles.input} />
+            {!moving ? <ItineraryFields day={day} time={time} details={planDetails} onChange={setPlanDetails} linkedPlace={Boolean(editingPlace)} /> : null}
+            <Text style={styles.label}>メモ</Text><TextInput accessibilityLabel="メモ" maxLength={4000} value={note} onChangeText={setNote} placeholder={moving ? '路線名・乗り場・乗り換えなど' : planDetails.category === 'meal' ? '食べたいもの・注文のメモなど' : '当日のメモなど'} placeholderTextColor={palette.placeholder} style={[styles.input, styles.noteInput]} multiline />
             </>}
             {editingId && canEdit ? <Pressable onPress={remove} style={styles.deleteButton}><Text style={styles.deleteText}>この予定を削除</Text></Pressable> : null}
         </>}
       </FormSheet>
     </SafeAreaView>
   );
+}
+
+function TransportRow({ item, hasPrevious, hasNext, onPress }: { item: ItineraryItem; hasPrevious: boolean; hasNext: boolean; onPress: () => void }) {
+  const styles = useThemedStyles(createStyles);
+  const palette = usePalette();
+  const details = itemDetails(item), transport = details.transport;
+  const mode = transportModes.find((option) => option.value === transport?.mode) ?? transportModes[7];
+  const route = [transport?.origin, transport?.destination].filter(Boolean).join(' → ');
+  return <Pressable accessibilityRole="button" accessibilityHint="移動の詳細を開きます" onPress={onPress} style={({ pressed }) => [styles.transportRow, pressed && styles.itemPressed]}>
+    <View style={styles.transportTime}><Text style={styles.transportTimeText}>{item.time || '—'}</Text>{itemEndLabel(item) ? <Text style={styles.timeZone}>〜 {itemEndLabel(item)}</Text> : null}</View>
+    <View style={styles.connectionRailColumn}>
+      <View style={[styles.connectionRailFull, !hasPrevious && { top: '50%' }, !hasNext && { bottom: '50%' }]} />
+      <View style={styles.transportIcon}><SymbolView name={{ ios: mode.ios, android: mode.icon, web: mode.icon } as SymbolName} size={18} tintColor={palette.ocean} /></View>
+    </View>
+    <View style={styles.connectionCopy}>
+      <View style={styles.connectionHeading}><Text style={styles.transportMode}>{transportLabel(details)}</Text><Text style={styles.connectionDuration}>{durationLabel(durationMinutes(item.day, item.time, details))}</Text></View>
+      <Text style={styles.transportRoute}>{route || item.title}</Text>
+      {route && item.title !== route && item.title !== `${transportLabel(details)}で移動` ? <Text style={styles.connectionNext}>{item.title}</Text> : null}
+    </View><Text style={styles.chevron}>›</Text>
+  </Pressable>;
 }
 
 function ConnectionRow({ connection, continueRail, nextFlight, onPress, disabled = false }: { connection: FlightConnection; continueRail: boolean; nextFlight?: Booking; onPress: () => void; disabled?: boolean }) {
@@ -517,6 +567,14 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   emptyTitle: { color: palette.ink, fontSize: 28, lineHeight: 30, fontWeight: '900', letterSpacing: -0.8, marginTop: 14 },
   emptyBody: { color: palette.slate, textAlign: 'center', marginTop: 7 },
   timeline: { marginHorizontal: -20 },
+  transportRow: { minHeight: 80, flexDirection: 'row', alignItems: 'stretch', paddingHorizontal: 16 },
+  transportTime: { width: 64, justifyContent: 'center' },
+  transportTimeText: { color: palette.slate, fontFamily: mono, fontSize: 12, fontWeight: '600' },
+  transportIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: palette.paper, alignItems: 'center', justifyContent: 'center' },
+  transportMode: { color: palette.ocean, fontSize: 12, fontWeight: '700' },
+  transportRoute: { color: palette.slate, fontSize: 13, lineHeight: 20 },
+  insertTransport: { minHeight: 44, paddingLeft: 130, paddingRight: 16, justifyContent: 'center', alignItems: 'flex-start' },
+  insertTransportText: { color: palette.ocean, fontSize: 11, fontWeight: '600' },
   daySection: { backgroundColor: palette.paper },
   dateBar: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.mist, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: palette.ash, paddingHorizontal: 20, position: 'relative', zIndex: 2 },
   dateBarDivider: { borderTopWidth: StyleSheet.hairlineWidth },

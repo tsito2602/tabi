@@ -229,3 +229,9 @@ CREATE TABLE IF NOT EXISTS packing_details (
   assignee TEXT NOT NULL DEFAULT '',
   shared INTEGER NOT NULL DEFAULT 0 CHECK(shared IN (0, 1))
 );
+
+-- Optional plan metadata; old clients can update a plan without erasing it.
+CREATE TABLE IF NOT EXISTS itinerary_details (
+  item_id TEXT PRIMARY KEY REFERENCES itinerary_items(id) ON DELETE CASCADE,
+  details TEXT
+);

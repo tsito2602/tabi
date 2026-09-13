@@ -1,4 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
+import { validDate } from '../src/utils/dates';
+import { itineraryCategories, transportModes, itineraryDetailsError } from '../src/data/itinerary';
+import type { ItineraryDetails } from '../src/data/types';
 import { mapUrl, referenceUrl } from '../src/data/places';
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
@@ -288,10 +291,38 @@ async function notesRoute(request: Request, env: Env, user: User, tripId: string
 async function listItems(env: Env, user: User, tripId: string) {
   const forbidden = await requireMember(env, tripId, user.id);
   if (forbidden) return forbidden;
-  const result = await env.DB.prepare(`SELECT id, day, time, kind, title, note, updated_by AS updatedBy, updated_at AS updatedAt FROM itinerary_items WHERE trip_id = ? ORDER BY day, time, id`)
+  const result = await env.DB.prepare(`SELECT i.id, i.day, i.time, i.kind, i.title, i.note, i.updated_by AS updatedBy, i.updated_at AS updatedAt, d.details FROM itinerary_items i LEFT JOIN itinerary_details d ON d.item_id = i.id WHERE i.trip_id = ? ORDER BY i.day, i.time, i.id`)
     .bind(tripId)
     .all();
-  return json({ items: result.results });
+  return json({ items: result.results.map(({ details, ...item }) => ({ ...item, ...(details ? { details: JSON.parse(String(details)) } : {}) })) });
+}
+
+function parseItineraryDetails(value: unknown, day: string, time: string): ItineraryDetails | null | undefined {
+  if (value === undefined) return undefined;
+  if (!isObject(value) || typeof value.location !== 'string' || typeof value.endDay !== 'string' || typeof value.endTime !== 'string' || !itineraryCategories.some((category) => category.value === value.category)) return null;
+  const location = textField(value.location, 160);
+  const endDay = value.endDay === '' ? '' : dateField(value.endDay);
+  const endTime = textField(value.endTime, 5);
+  if (location === null || (endDay && !validDate(endDay)) || endDay === null || endTime === null || !/^([01]\d|2[0-3]):[0-5]\d$|^$/.test(endTime) || Boolean(endDay) !== Boolean(endTime)) return null;
+  const details: ItineraryDetails = { category: value.category as ItineraryDetails['category'], location, endDay, endTime };
+  if (value.category === 'transport') {
+    const transport = value.transport;
+    if (!isObject(transport) || typeof transport.origin !== 'string' || typeof transport.destination !== 'string' || !transportModes.some((mode) => mode.value === transport.mode)) return null;
+    const origin = textField(transport.origin, 160), destination = textField(transport.destination, 160);
+    const duration = transport.durationMinutes;
+    const afterKey = transport.afterKey;
+    if (afterKey !== undefined && (typeof afterKey !== 'string' || afterKey.length > 100 || !/^(item|booking)-[a-zA-Z0-9-]+$/.test(afterKey))) return null;
+    if (origin === null || destination === null || (duration !== undefined && (typeof duration !== 'number' || !Number.isInteger(duration) || duration < 1 || duration > 10080))) return null;
+    details.transport = { mode: transport.mode as NonNullable<ItineraryDetails['transport']>['mode'], origin, destination, ...(duration === undefined ? {} : { durationMinutes: duration as number }), ...(afterKey === undefined ? {} : { afterKey: afterKey as string }) };
+  } else if (value.transport !== undefined) return null;
+  return itineraryDetailsError(day, time, details) ? null : details;
+}
+
+function itineraryDetailsStatement(env: Env, itemId: string, tripId: string, details?: ItineraryDetails) {
+  return env.DB.prepare(`INSERT INTO itinerary_details (item_id, details)
+    SELECT ?, ? WHERE EXISTS (SELECT 1 FROM itinerary_items WHERE id = ? AND trip_id = ?)
+    ON CONFLICT(item_id) DO UPDATE SET details = COALESCE(excluded.details, itinerary_details.details)`)
+    .bind(itemId, details === undefined ? null : JSON.stringify(details), itemId, tripId);
 }
 
 function itineraryFields(body: Record<string, unknown>) {
@@ -301,7 +332,9 @@ function itineraryFields(body: Record<string, unknown>) {
   const title = textField(body.title, 160, true);
   const note = textField(body.note, 4000);
   if (!day || time === null || !/^([01]\d|2[0-3]):[0-5]\d$|^$/.test(time) || !kind || !title || note === null) return null;
-  return { day, time, kind, title, note };
+  const details = parseItineraryDetails(body.details, day, time);
+  if (details === null) return null;
+  return { day, time, kind, title, note, ...(details === undefined ? {} : { details }) };
 }
 
 async function createItem(request: Request, env: Env, user: User, tripId: string) {
@@ -311,7 +344,7 @@ async function createItem(request: Request, env: Env, user: User, tripId: string
   const fields = isObject(body) ? itineraryFields(body) : null;
   if (!fields) return json({ error: '正しい旅程を入力してください' }, 400);
   const id = idField(body?.id) ?? crypto.randomUUID();
-  const result = await env.DB.prepare(`
+  const statement = env.DB.prepare(`
     INSERT INTO itinerary_items (id, trip_id, day, time, kind, title, note, updated_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
@@ -324,8 +357,8 @@ async function createItem(request: Request, env: Env, user: User, tripId: string
       updated_at = unixepoch()
     WHERE itinerary_items.trip_id = excluded.trip_id
   `)
-    .bind(id, tripId, fields.day, fields.time, fields.kind, fields.title, fields.note, user.id)
-    .run();
+    .bind(id, tripId, fields.day, fields.time, fields.kind, fields.title, fields.note, user.id);
+  const [result] = await env.DB.batch([statement, itineraryDetailsStatement(env, id, tripId, fields.details)]);
   if (!result.meta.changes) return json({ error: '旅程IDが競合しました' }, 409);
   return json({ item: { id, ...fields, updatedBy: user.id } }, 201);
 }
@@ -336,9 +369,9 @@ async function updateItem(request: Request, env: Env, user: User, tripId: string
   const body = await request.json().catch(() => null);
   const fields = isObject(body) ? itineraryFields(body) : null;
   if (!fields) return json({ error: '正しい旅程を入力してください' }, 400);
-  const result = await env.DB.prepare(`UPDATE itinerary_items SET day = ?, time = ?, kind = ?, title = ?, note = ?, updated_by = ?, updated_at = unixepoch() WHERE id = ? AND trip_id = ?`)
-    .bind(fields.day, fields.time, fields.kind, fields.title, fields.note, user.id, itemId, tripId)
-    .run();
+  const statement = env.DB.prepare(`UPDATE itinerary_items SET day = ?, time = ?, kind = ?, title = ?, note = ?, updated_by = ?, updated_at = unixepoch() WHERE id = ? AND trip_id = ?`)
+    .bind(fields.day, fields.time, fields.kind, fields.title, fields.note, user.id, itemId, tripId);
+  const [result] = await env.DB.batch([statement, itineraryDetailsStatement(env, itemId, tripId, fields.details)]);
   return result.meta.changes ? json({ item: { id: itemId, ...fields, updatedBy: user.id } }) : json({ error: '旅程が見つかりません' }, 404);
 }
 
