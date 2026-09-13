@@ -9,10 +9,11 @@ async function walk(dir) {
 }
 const exportedFiles = await walk(root);
 // Expo replaces custom rel=icon links with favicon.ico during export.
-// Restore the theme-aware vector icon on every statically generated page.
+// Restore Web Clip and ICO/PNG/theme-aware SVG candidates on every exported page.
+const iconLinks = '<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/><link rel="icon" href="/icons/favicon.ico" sizes="any"/><link rel="icon" href="/icons/favicon-32x32.png" type="image/png" sizes="32x32"/><link rel="icon" href="/icons/favicon-16x16.png" type="image/png" sizes="16x16"/><link rel="icon" href="/icons/icon.svg" type="image/svg+xml" sizes="any"/>';
 for (const file of exportedFiles.filter((file) => file.endsWith('.html'))) {
   const html = await readFile(file, 'utf8');
-  await writeFile(file, html.replace(/<link\b(?=[^>]*\brel="icon")[^>]*>/g, '<link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any"/>'));
+  await writeFile(file, html.replace(/<link\b(?=[^>]*\brel="(?:icon|apple-touch-icon)")[^>]*>/g, '').replace('</head>', `${iconLinks}</head>`));
 }
 const files = exportedFiles.filter((file) => !/\.(map|html)$/.test(file) && !/\/(sw\.js|_headers|metadata\.json)$/.test(file));
 files.push(path.join(root, 'index.html'));

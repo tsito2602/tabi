@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { transformSync } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import sharp from 'sharp';
 
 const require = createRequire(import.meta.url);
 function load(file, mocks, extra = '', define = {}) {
@@ -18,6 +19,21 @@ const element = (tag) => ({ children, accessibilityLabel }) => React.createEleme
 const native = { Platform: { OS: 'web' }, StyleSheet: { create: (x) => x }, View: element('div'), Text: element('span'), Pressable: element('button') };
 const palette = new Proxy({}, { get: () => '#000000' });
 const theme = { usePalette: () => palette, useThemedStyles: (create) => create(palette) };
+
+test('web icons retain konogoro-compatible RGBA export independently of native store assets', async () => {
+  const manifest = JSON.parse(readFileSync('public/manifest.webmanifest', 'utf8'));
+  for (const path of ['/icons/apple-touch-icon.png', ...manifest.icons.map((icon) => icon.src)]) {
+    const file = `public${path}`;
+    const metadata = await sharp(file).metadata();
+    assert.equal(metadata.channels, 4, path);
+    assert.equal(metadata.hasAlpha, true, path);
+    assert.equal(metadata.density, 384, path);
+    assert.equal((await sharp(file).stats()).isOpaque, true, path);
+    const pixels = await sharp(file).raw().toBuffer();
+    assert.deepEqual([...pixels.subarray(0, 4)], [255, 255, 255, 255], path);
+  }
+  assert.equal((await sharp('assets/brand/icon.png').metadata()).hasAlpha, false);
+});
 
 test('production rejects saved demo state and demo activation; development, preview and staging retain it', async () => {
   for (const [dev, preview, flag, expected] of [[false, false, 'false', false], [false, false, '', false], [true, false, 'false', true], [false, true, 'false', true], [false, false, 'true', true]]) {
