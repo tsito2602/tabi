@@ -5,6 +5,7 @@ import { useToast } from '@/components/toast';
 import { useTripHero } from '@/components/trip-hero';
 import { useTripHeaderHeight } from '@/components/trip-header-context';
 import { BookingSheet } from '@/components/booking-sheet';
+import { PlaceSheet } from '@/components/place-sheet';
 import { SymbolView } from 'expo-symbols';
 import { useLocalSearchParams } from 'expo-router';
 import { Fragment, type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -175,7 +176,7 @@ export default function ItineraryScreen() {
   const hero = useTripHero();
   const [dayBarHeight, setDayBarHeight] = useState(60);
   const { height: windowHeight } = useWindowDimensions();
-  const { canEdit, selectedTrip, items, bookings, createItem, updateItem, deleteItem, pendingCount } = useTravel();
+  const { canEdit, selectedTrip, items, places, bookings, createItem, updateItem, deleteItem, pendingCount } = useTravel();
   const { itemId } = useLocalSearchParams<{ itemId?: string }>();
   const requestedDay = items.find((item) => item.id === itemId)?.day;
   const pendingScrollDay = useRef<string | null>(null);
@@ -183,11 +184,13 @@ export default function ItineraryScreen() {
   const viewingBooking = bookings.find((booking) => booking.id === viewingBookingId);
   const [viewingItemId, setViewingItemId] = useState<string | null>(null);
   const viewingItem = items.find((item) => item.id === viewingItemId);
+  const viewingPlace = viewingItem ? places.find((place) => place.itineraryItemId === viewingItem.id) : undefined;
   const [adding, setAdding] = useState(false);
   const isViewingItem = Boolean(viewingItem) && !adding;
   const [formError, setFormError] = useState('');
   const [initialDraft, setInitialDraft] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const editingPlace = editingId ? places.find((place) => place.itineraryItemId === editingId) : undefined;
   const [connectionBookingId, setConnectionBookingId] = useState<string | null>(null);
   const [day, setDay] = useState(selectedTrip?.startsOn ?? '');
   const [time, setTime] = useState('10:00');
@@ -206,7 +209,7 @@ export default function ItineraryScreen() {
   const connectionByArrival = useMemo(() => new Map(flightConnections.map((connection) => [connection.arrivalBookingId, connection])), [flightConnections]);
 
   const timeline = [
-    ...items.map<TimelineEntry>((item) => ({ key: `item-${item.id}`, day: item.day, time: item.time, title: item.title, note: item.note, item })),
+    ...items.map<TimelineEntry>((item) => ({ key: `item-${item.id}`, day: item.day, time: item.time, title: places.find((place) => place.itineraryItemId === item.id)?.title ?? item.title, note: item.note, item })),
     ...bookings.flatMap(bookingTimelineEntries),
   ].sort((left, right) => left.day.localeCompare(right.day) || left.time.localeCompare(right.time) || left.key.localeCompare(right.key));
   // Continue a layover rail only when the next visible event is that flight.
@@ -297,10 +300,11 @@ export default function ItineraryScreen() {
   const openEdit = (item: ItineraryItem) => {
     setEditingId(item.id);
     setDay(item.day);
-    setTime(item.time || '10:00');
+    const editTime = places.some((place) => place.itineraryItemId === item.id) ? item.time : item.time || '10:00';
+    setTime(editTime);
     setTitle(item.title);
     setNote(item.note);
-    setInitialDraft(JSON.stringify([item.day, item.time || '10:00', item.title, item.note]));
+    setInitialDraft(JSON.stringify([item.day, editTime, item.title, item.note]));
     setFormError('');
     setAdding(true);
   };
@@ -311,11 +315,12 @@ export default function ItineraryScreen() {
   };
 
   const save = () => {
-    if (!title.trim() || !validDate(day) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+    if (!title.trim() || !validDate(day) || (!(editingPlace && time === '') && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))) {
       setFormError('日付、時刻、予定名を入力してください');
       return;
     }
-    const input = { day, time, kind: '予定', title: title.trim(), note: note.trim() };
+    const originalItem = items.find((item) => item.id === editingId);
+    const input = editingPlace && originalItem ? { ...originalItem, day, time } : { day, time, kind: '予定', title: title.trim(), note: note.trim() };
     if (editingId) updateItem(editingId, input);
     else createItem(input);
     closeEditor(); toast('予定を保存しました');
@@ -441,7 +446,9 @@ export default function ItineraryScreen() {
 
       {viewingBooking ? <BookingSheet key={`${selectedTrip?.id}:${viewingBooking.id}`} booking={viewingBooking} onClose={() => setViewingBookingId(null)} /> : null}
 
-      <FormSheet visible={adding || Boolean(viewingItem)} presentation={isViewingItem ? 'detail' : 'form'} title={isViewingItem ? '予定の詳細' : editingId ? '予定を編集' : '予定を追加'} onClose={() => { if (isViewingItem) setViewingItemId(null); else closeEditor(); }} onSave={canEdit ? isViewingItem ? () => openEdit(viewingItem!) : save : undefined} saveLabel={isViewingItem ? '編集' : '保存'} canSave={isViewingItem || Boolean(title.trim())} dirty={!isViewingItem && JSON.stringify([day, time, title, note]) !== initialDraft} error={isViewingItem ? undefined : formError}>
+      {isViewingItem && viewingPlace ? <PlaceSheet key={viewingPlace.id} place={viewingPlace} onClose={() => setViewingItemId(null)} onEditSchedule={() => openEdit(viewingItem!)} /> : null}
+
+      <FormSheet visible={adding || (Boolean(viewingItem) && !viewingPlace)} presentation={isViewingItem ? 'detail' : 'form'} title={isViewingItem ? '予定の詳細' : editingPlace ? '日時を編集' : editingId ? '予定を編集' : '予定を追加'} onClose={() => { if (isViewingItem) setViewingItemId(null); else closeEditor(); }} onSave={canEdit ? isViewingItem ? () => openEdit(viewingItem!) : save : undefined} saveLabel={isViewingItem ? '編集' : '保存'} canSave={isViewingItem || Boolean(title.trim())} dirty={!isViewingItem && JSON.stringify([day, time, title, note]) !== initialDraft} error={isViewingItem ? undefined : formError}>
         {isViewingItem && viewingItem ? <View testID="itinerary-item-details" style={styles.planDetails}>
           <Text selectable style={styles.planTitle}>{viewingItem.title}</Text>
           <View style={styles.planDate}>
@@ -454,8 +461,10 @@ export default function ItineraryScreen() {
           </View> : null}
         </View> : <>
             <DateRangePicker mode="single" showTime label="日時" startDate={day} endDate={day} startTime={time} onChange={(range) => { setDay(range.startDate); setTime(range.startTime); }} />
+            {editingPlace ? <Text style={styles.planDateText}>{editingPlace.title}</Text> : <>
             <Text style={styles.label}>予定</Text><TextInput accessibilityLabel="予定名" maxLength={160} value={title} onChangeText={setTitle} placeholder="空港へ移動" placeholderTextColor={palette.placeholder} style={styles.input} autoFocus />
             <Text style={styles.label}>メモ</Text><TextInput accessibilityLabel="メモ" maxLength={4000} value={note} onChangeText={setNote} placeholder="集合場所や予約番号など" placeholderTextColor={palette.placeholder} style={[styles.input, styles.noteInput]} multiline />
+            </>}
             {editingId && canEdit ? <Pressable onPress={remove} style={styles.deleteButton}><Text style={styles.deleteText}>この予定を削除</Text></Pressable> : null}
         </>}
       </FormSheet>

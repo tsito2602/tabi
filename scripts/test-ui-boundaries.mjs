@@ -116,7 +116,7 @@ test('place itinerary actions follow actual additions across every status and pr
       '@/components/place-status-icon': { PlaceStatusIcon: () => null },
       '@/components/form-sheet': {}, '@/components/floating-add-button': { FloatingAddButton: () => null },
       '@/constants/design': {}, '@/data/places': placeData,
-      '@/utils/confirm-deletion': {}, '@/components/date-range-picker': {},
+      '@/components/place-sheet': { PlaceSheet: () => null }, '@/components/date-range-picker': {},
       '@/components/toast': { useToast: () => noop },
       '@/components/trip-header-context': { useTripHeaderHeight: () => 0 },
       '@/data/travel-provider': { useTravel: () => ({ canEdit, places: [{ id: 'place', title: '美術館', note: '', location: '', status, reservationStatus: 'not_needed', itineraryItemId: 'plan' }], items: added ? [{ id: 'plan', day: '2026-11-23' }] : [] }) },
@@ -124,5 +124,33 @@ test('place itinerary actions follow actual additions across every status and pr
     const html = renderToStaticMarkup(React.createElement(Screen));
     assert.equal(html.includes('しおりを見る'), added, `${status}: linked plan visible even to viewers`);
     assert.equal(html.includes('しおりへ'), !added && canEdit, `${status}: add when unlinked or deleted`);
+  }
+});
+
+test('shared place sheet shows current source details from either entry point and preserves viewer access', () => {
+  const placeData = load('src/data/places.ts', {});
+  const place = { id: 'place', title: '美術館', note: '最新の展示メモ', location: 'ウィーン', openingHours: '10:00–18:00', status: 'planned', reservationStatus: 'confirmed', referenceLinks: [{ label: '公式サイト', url: 'https://museum.example/' }], itineraryItemId: 'plan' };
+  for (const canEdit of [false, true]) for (const fromItinerary of [false, true]) {
+    let sheetProps;
+    const { PlaceSheet } = load('src/components/place-sheet.tsx', {
+      '@/theme/theme-provider': theme,
+      'react-native': { ...native, TextInput: element('input'), Linking: {} },
+      'expo-symbols': { SymbolView: () => null },
+      '@/constants/design': {}, '@/data/places': placeData,
+      '@/components/place-status-icon': { PlaceStatusIcon: () => null },
+      '@/components/toast': { useToast: () => noop },
+      '@/utils/confirm-deletion': {},
+      '@/components/form-sheet': { FormSheet: (props) => { sheetProps = props; return React.createElement('section', null, props.children); } },
+      '@/data/travel-provider': { useTravel: () => ({ canEdit, places: [place], items: [{ id: 'plan', day: '2026-11-23', time: '' }] }) },
+    });
+    const html = renderToStaticMarkup(React.createElement(PlaceSheet, { place: { ...place, note: '古いメモ' }, onClose: noop, ...(fromItinerary ? { onEditSchedule: noop } : { onPlan: noop }) }));
+    for (const detail of ['美術館', '最新の展示メモ', 'ウィーン', '10:00–18:00', '行く予定', '予約済み', '公式サイト', '地図を開く']) assert.ok(html.includes(detail), detail);
+    assert.equal(html.includes('古いメモ'), false, 'read the source, not a stale snapshot');
+    assert.equal(sheetProps.title, '場所の詳細');
+    assert.equal(sheetProps.presentation, 'detail');
+    assert.equal(Boolean(sheetProps.onSave), canEdit);
+    assert.equal(html.includes('日時を編集'), fromItinerary && canEdit);
+    assert.equal(html.includes('時刻未定'), fromItinerary);
+    assert.equal(html.includes('しおりを見る'), !fromItinerary);
   }
 });
