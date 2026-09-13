@@ -222,3 +222,10 @@ CREATE TABLE IF NOT EXISTS travel_notes (
   updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 CREATE INDEX IF NOT EXISTS travel_notes_trip ON travel_notes(trip_id, pinned, updated_at);
+
+-- Optional packing ownership preserves existing rows and repeatable deployment.
+CREATE TABLE IF NOT EXISTS packing_details (
+  item_id TEXT PRIMARY KEY REFERENCES packing_items(id) ON DELETE CASCADE,
+  assignee TEXT NOT NULL DEFAULT '',
+  shared INTEGER NOT NULL DEFAULT 0 CHECK(shared IN (0, 1))
+);

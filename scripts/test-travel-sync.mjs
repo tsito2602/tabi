@@ -14,6 +14,33 @@ const { outputFiles } = await build({
   } }],
 });
 const providerCode = outputFiles[0].text;
+const filterBuild = await build({ entryPoints: ['src/data/preparation-filter.ts'], bundle: true, write: false, platform: 'node', format: 'cjs', logLevel: 'silent' });
+const filterModule = { exports: {} };
+new Function('module', 'exports', filterBuild.outputFiles[0].text)(filterModule, filterModule.exports);
+const { matchesPreparationFilter, preparationFilterOptions } = filterModule.exports;
+
+test('shared packing has one record, appears under its carrier and shared filters, and survives local storage', async () => {
+  const f = await fixture({ isDemo: true });
+  try {
+    const input = { name: '充電器', category: '電子機器', quantity: 1, packed: false, assignee: 'member:one', shared: true };
+    const id = f.api.createPackingItem(input);
+    f.api.createPackingItem({ ...input, name: 'パスポート', shared: false, assignee: 'member:two' });
+    const items = f.render().packingItems;
+    assert.equal(items.filter((item) => matchesPreparationFilter(item, { kind: 'all' })).length, 2);
+    assert.equal(items.filter((item) => matchesPreparationFilter(item, { kind: 'shared' })).length, 1);
+    assert.equal(items.filter((item) => matchesPreparationFilter(item, { kind: 'assignee', value: 'member:one' })).length, 1);
+    assert.equal(matchesPreparationFilter({}, { kind: 'assignee', value: '' }), true, 'legacy packing is unassigned');
+    assert.equal(matchesPreparationFilter({ assignee: 'member:two' }, { kind: 'assignee', value: 'member:one' }), false);
+    f.api.updatePackingItem(id, { ...input, packed: true });
+    assert.equal(f.render().packingItems.find((item) => item.id === id).packed, true);
+    assert.deepEqual(f.writes.at(-1).packingByTrip.trip.find((item) => item.id === id), { id, ...input, packed: true });
+    const options = preparationFilterOptions([{ id: 'one', name: '新しい名前' }], [...items, { assignee: '旧担当' }], true);
+    assert.equal(options.find((option) => option.key === 'member:one').label, '新しい名前');
+    assert.ok(options.some((option) => option.key === 'member:two'), 'departed or not-yet-loaded members remain selectable');
+    assert.ok(options.some((option) => option.key === '旧担当'), 'legacy task names remain selectable');
+    assert.equal(preparationFilterOptions([], [], false).some((option) => option.key === 'shared'), false);
+  } finally { f.close(); }
+});
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const deferred = () => {
   let resolve;

@@ -66,6 +66,8 @@ export type PackingItem = {
   category: string;
   quantity: number;
   packed: boolean;
+  assignee?: string;
+  shared?: boolean;
   updatedBy?: string;
   updatedAt?: number;
 };
@@ -170,6 +172,8 @@ export const normalizeTravelCache = (value: TravelCache): TravelCache => ({
         category: item.category ?? 'その他',
         quantity: Math.max(1, item.quantity ?? 1),
         packed: Boolean(item.packed),
+        assignee: item.assignee ?? '',
+        shared: item.shared ?? false,
       })),
     ]),
   ),

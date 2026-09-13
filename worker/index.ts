@@ -611,6 +611,8 @@ type PackingRow = {
   category: string;
   quantity: number;
   packed: number;
+  assignee: string;
+  shared: number;
   updatedBy: string;
   updatedAt: number;
 };
@@ -621,52 +623,67 @@ function packingFields(body: Record<string, unknown>) {
   const quantity = typeof body.quantity === 'number' && Number.isInteger(body.quantity) ? body.quantity : 1;
   const packed = typeof body.packed === 'boolean' ? body.packed : false;
   if (!name || !category || quantity < 1 || quantity > 99) return null;
-  return { name, category, quantity, packed };
+  const assignee = body.assignee === undefined ? undefined : typeof body.assignee === 'string' ? textField(body.assignee, 80) : null;
+  const shared = body.shared;
+  if (assignee === null || (shared !== undefined && typeof shared !== 'boolean')) return null;
+  return { name, category, quantity, packed, assignee, shared };
 }
 
 async function listPacking(env: Env, user: User, tripId: string) {
   const forbidden = await requireMember(env, tripId, user.id);
   if (forbidden) return forbidden;
   const result = await env.DB.prepare(`
-    SELECT id, name, category, quantity, packed, updated_by AS updatedBy, updated_at AS updatedAt
-    FROM packing_items WHERE trip_id = ? ORDER BY packed, category, name, id
+    SELECT p.id, p.name, p.category, p.quantity, p.packed, p.updated_by AS updatedBy, p.updated_at AS updatedAt,
+      COALESCE(d.assignee, '') AS assignee, COALESCE(d.shared, 0) AS shared
+    FROM packing_items p LEFT JOIN packing_details d ON d.item_id = p.id
+    WHERE p.trip_id = ? ORDER BY p.packed, p.category, p.name, p.id
   `).bind(tripId).all<PackingRow>();
-  return json({ items: result.results.map((item) => ({ ...item, packed: Boolean(item.packed) })) });
+  return json({ items: result.results.map((item) => ({ ...item, packed: Boolean(item.packed), shared: Boolean(item.shared) })) });
 }
 
-async function createPackingItem(request: Request, env: Env, user: User, tripId: string) {
+async function validatePackingAssignee(env: Env, tripId: string, assignee: string | undefined, itemId: string) {
+  if (!assignee) return null;
+  if (assignee.startsWith('member:') && await memberRole(env, tripId, assignee.slice(7))) return null;
+  const existing = await env.DB.prepare(`SELECT d.assignee FROM packing_details d JOIN packing_items p ON p.id = d.item_id WHERE p.id = ? AND p.trip_id = ?`).bind(itemId, tripId).first<{ assignee: string }>();
+  if (existing?.assignee === assignee) return null;
+  return json({ error: 'この旅行のメンバーから担当を選んでください' }, 400);
+}
+
+async function writePackingItem(request: Request, env: Env, user: User, tripId: string, itemId?: string) {
   const forbidden = await requireMember(env, tripId, user.id);
   if (forbidden) return forbidden;
   const body = await request.json().catch(() => null);
   const fields = isObject(body) ? packingFields(body) : null;
   if (!fields) return json({ error: '正しい持ち物情報を入力してください' }, 400);
-  const id = idField(body?.id) ?? crypto.randomUUID();
-  const result = await env.DB.prepare(`
-    INSERT INTO packing_items (id, trip_id, name, category, quantity, packed, updated_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      name = excluded.name, category = excluded.category, quantity = excluded.quantity,
-      packed = excluded.packed, updated_by = excluded.updated_by, updated_at = unixepoch()
-    WHERE packing_items.trip_id = excluded.trip_id
-  `).bind(id, tripId, fields.name, fields.category, fields.quantity, fields.packed ? 1 : 0, user.id).run();
-  if (!result.meta.changes) return json({ error: '持ち物IDが競合しました' }, 409);
-  return json({ item: { id, ...fields, updatedBy: user.id } }, 201);
+  const id = itemId ?? idField(body?.id) ?? crypto.randomUUID();
+  const invalidAssignee = await validatePackingAssignee(env, tripId, fields.assignee, id);
+  if (invalidAssignee) return invalidAssignee;
+  const statement = itemId
+    ? env.DB.prepare(`UPDATE packing_items SET name = ?, category = ?, quantity = ?, packed = ?, updated_by = ?, updated_at = unixepoch() WHERE id = ? AND trip_id = ?`)
+      .bind(fields.name, fields.category, fields.quantity, fields.packed ? 1 : 0, user.id, id, tripId)
+    : env.DB.prepare(`INSERT INTO packing_items (id, trip_id, name, category, quantity, packed, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET name = excluded.name, category = excluded.category, quantity = excluded.quantity,
+        packed = excluded.packed, updated_by = excluded.updated_by, updated_at = unixepoch()
+      WHERE packing_items.trip_id = excluded.trip_id`)
+      .bind(id, tripId, fields.name, fields.category, fields.quantity, fields.packed ? 1 : 0, user.id);
+  // Omitted fields from older/offline clients must not clear the assignment.
+  const assignee = fields.assignee ?? null;
+  const shared = fields.shared === undefined ? null : fields.shared ? 1 : 0;
+  const [result] = await env.DB.batch([
+    statement,
+    env.DB.prepare(`INSERT INTO packing_details (item_id, assignee, shared)
+      SELECT ?, COALESCE(?, ''), COALESCE(?, 0) WHERE EXISTS (SELECT 1 FROM packing_items WHERE id = ? AND trip_id = ?)
+      ON CONFLICT(item_id) DO UPDATE SET assignee = COALESCE(?, packing_details.assignee), shared = COALESCE(?, packing_details.shared)`)
+      .bind(id, assignee, shared, id, tripId, assignee, shared),
+  ]);
+  if (!result.meta.changes) return json({ error: '持ち物が見つからないか、IDが競合しました' }, itemId ? 404 : 409);
+  const details = await env.DB.prepare('SELECT assignee, shared FROM packing_details WHERE item_id = ?').bind(id).first<{ assignee: string; shared: number }>();
+  return json({ item: { id, ...fields, assignee: details?.assignee ?? '', shared: Boolean(details?.shared), updatedBy: user.id } }, itemId ? 200 : 201);
 }
 
-async function updatePackingItem(request: Request, env: Env, user: User, tripId: string, itemId: string) {
-  const forbidden = await requireMember(env, tripId, user.id);
-  if (forbidden) return forbidden;
-  const body = await request.json().catch(() => null);
-  const fields = isObject(body) ? packingFields(body) : null;
-  if (!fields) return json({ error: '正しい持ち物情報を入力してください' }, 400);
-  const result = await env.DB.prepare(`
-    UPDATE packing_items SET name = ?, category = ?, quantity = ?, packed = ?, updated_by = ?, updated_at = unixepoch()
-    WHERE id = ? AND trip_id = ?
-  `).bind(fields.name, fields.category, fields.quantity, fields.packed ? 1 : 0, user.id, itemId, tripId).run();
-  return result.meta.changes
-    ? json({ item: { id: itemId, ...fields, updatedBy: user.id } })
-    : json({ error: '持ち物が見つかりません' }, 404);
-}
+const createPackingItem = (request: Request, env: Env, user: User, tripId: string) => writePackingItem(request, env, user, tripId);
+const updatePackingItem = (request: Request, env: Env, user: User, tripId: string, itemId: string) => writePackingItem(request, env, user, tripId, itemId);
 
 async function deletePackingItem(env: Env, user: User, tripId: string, itemId: string) {
   const forbidden = await requireMember(env, tripId, user.id);

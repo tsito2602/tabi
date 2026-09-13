@@ -181,7 +181,10 @@ export default function ItineraryScreen() {
   const pendingScrollDay = useRef<string | null>(null);
   const [viewingBookingId, setViewingBookingId] = useState<string | null>(null);
   const viewingBooking = bookings.find((booking) => booking.id === viewingBookingId);
+  const [viewingItemId, setViewingItemId] = useState<string | null>(null);
+  const viewingItem = items.find((item) => item.id === viewingItemId);
   const [adding, setAdding] = useState(false);
+  const isViewingItem = Boolean(viewingItem) && !adding;
   const [formError, setFormError] = useState('');
   const [initialDraft, setInitialDraft] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -280,6 +283,7 @@ export default function ItineraryScreen() {
 
   const openAdd = () => {
     if (!selectedTrip) return;
+    setViewingItemId(null);
     setEditingId(null);
     setDay(visibleActiveDay || selectedTrip.startsOn);
     setTime('10:00');
@@ -321,6 +325,7 @@ export default function ItineraryScreen() {
     if (!editingId) return;
     confirmDeletion('予定を削除しますか？', title, () => {
       deleteItem(editingId);
+      setViewingItemId(null);
       closeEditor();
     });
   };
@@ -384,10 +389,9 @@ export default function ItineraryScreen() {
                     return (
                     <Fragment key={entry.key}>
                     <Pressable
-                      accessibilityHint={entry.booking ? '予約の詳細を開きます' : '予定を編集します'}
+                      accessibilityHint={entry.booking ? '予約の詳細を開きます' : '予定の詳細を開きます'}
                       accessibilityRole="button"
-                      disabled={!canEdit && !entry.booking}
-                      onPress={() => entry.booking ? setViewingBookingId(entry.booking.id) : openEdit(entry.item!)}
+                      onPress={() => entry.booking ? setViewingBookingId(entry.booking.id) : setViewingItemId(entry.item!.id)}
                       style={({ pressed }) => [styles.itemRow, (isLinkedStart || isLinkedEnd) && styles.linkedBookingRow, pressed && styles.itemPressed]}>
                       <View style={styles.timeColumn}>
                         <Text style={styles.time}>{entry.time || '—'}</Text>
@@ -411,7 +415,6 @@ export default function ItineraryScreen() {
                       <View style={[styles.itemCopy, entryIndex < dateItems.length - 1 && styles.itemDivider]}>
                         <Text style={styles.itemTitle}>{entryTitle(entry)}</Text>
                         {details.map((detail, index) => <Text key={`${entry.key}-detail-${index}`} style={[styles.note, index === 0 && styles.bookingTag]}>{detail}</Text>)}
-                        {!entry.booking && entry.note ? <Text style={styles.note}>{entry.note}</Text> : null}
                       </View>
                       <Text style={styles.chevron}>›</Text>
                     </Pressable>
@@ -438,11 +441,23 @@ export default function ItineraryScreen() {
 
       {viewingBooking ? <BookingSheet key={`${selectedTrip?.id}:${viewingBooking.id}`} booking={viewingBooking} onClose={() => setViewingBookingId(null)} /> : null}
 
-      <FormSheet visible={adding} title={editingId ? '予定を編集' : '予定を追加'} onClose={closeEditor} onSave={canEdit ? save : undefined} canSave={Boolean(title.trim())} dirty={JSON.stringify([day, time, title, note]) !== initialDraft} error={formError}>
+      <FormSheet visible={adding || Boolean(viewingItem)} presentation={isViewingItem ? 'detail' : 'form'} title={isViewingItem ? '予定の詳細' : editingId ? '予定を編集' : '予定を追加'} onClose={() => { if (isViewingItem) setViewingItemId(null); else closeEditor(); }} onSave={canEdit ? isViewingItem ? () => openEdit(viewingItem!) : save : undefined} saveLabel={isViewingItem ? '編集' : '保存'} canSave={isViewingItem || Boolean(title.trim())} dirty={!isViewingItem && JSON.stringify([day, time, title, note]) !== initialDraft} error={isViewingItem ? undefined : formError}>
+        {isViewingItem && viewingItem ? <View testID="itinerary-item-details" style={styles.planDetails}>
+          <Text selectable style={styles.planTitle}>{viewingItem.title}</Text>
+          <View style={styles.planDate}>
+            <SymbolView name={{ ios: 'calendar', android: 'calendar_today', web: 'calendar_today' }} size={20} tintColor={palette.ocean} />
+            <Text style={styles.planDateText}>{viewingItem.day.replaceAll('-', '/')}　{viewingItem.time || '時刻未定'}</Text>
+          </View>
+          {viewingItem.note ? <View style={styles.planNote}>
+            <Text style={styles.label}>メモ</Text>
+            <Text selectable style={styles.planNoteText}>{viewingItem.note}</Text>
+          </View> : null}
+        </View> : <>
             <DateRangePicker mode="single" showTime label="日時" startDate={day} endDate={day} startTime={time} onChange={(range) => { setDay(range.startDate); setTime(range.startTime); }} />
             <Text style={styles.label}>予定</Text><TextInput accessibilityLabel="予定名" maxLength={160} value={title} onChangeText={setTitle} placeholder="空港へ移動" placeholderTextColor={palette.placeholder} style={styles.input} autoFocus />
             <Text style={styles.label}>メモ</Text><TextInput accessibilityLabel="メモ" maxLength={4000} value={note} onChangeText={setNote} placeholder="集合場所や予約番号など" placeholderTextColor={palette.placeholder} style={[styles.input, styles.noteInput]} multiline />
             {editingId && canEdit ? <Pressable onPress={remove} style={styles.deleteButton}><Text style={styles.deleteText}>この予定を削除</Text></Pressable> : null}
+        </>}
       </FormSheet>
     </SafeAreaView>
   );
@@ -544,6 +559,12 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   form: { padding: 20, gap: 9 },
   label: { color: palette.slate, fontFamily: mono, fontSize: 11, fontWeight: '400', marginTop: 10 },
   input: { minHeight: 50, backgroundColor: palette.paper, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 14, color: palette.ink, fontSize: 16 },
+  planDetails: { gap: 22 },
+  planTitle: { color: palette.ink, fontSize: 28, lineHeight: 36, fontWeight: '800' },
+  planDate: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  planDateText: { color: palette.slate, fontSize: 15, lineHeight: 22, flexShrink: 1 },
+  planNote: { gap: 4 },
+  planNoteText: { color: palette.ink, fontSize: 16, lineHeight: 26 },
   noteInput: { minHeight: 120, textAlignVertical: 'top' },
   deleteButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', marginTop: 24 },
   deleteText: { color: palette.danger, fontSize: 15, fontWeight: '700' },

@@ -5,7 +5,8 @@ import { assigneeName, assignedMember } from '@/data/assignee';
 import { PageHeading } from '@/components/page-heading';
 import { useToast } from '@/components/toast';
 import { useTripHeaderHeight } from '@/components/trip-header-context';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
+import { matchesPreparationFilter, preparationFilterOptions } from '@/data/preparation-filter';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -22,10 +23,10 @@ const CATEGORIES = ['衣類', '洗面・衛生', '電子機器', '書類', '薬'
 const today = localDate();
 
 type Mode = 'tasks' | 'packing';
-type PackingDraft = Pick<PackingItem, 'name' | 'category' | 'quantity' | 'packed'>;
+type PackingDraft = Pick<PackingItem, 'name' | 'category' | 'quantity' | 'packed' | 'assignee' | 'shared'>;
 type TaskDraft = Pick<TravelTask, 'title' | 'dueOn' | 'assignee' | 'done'>;
 
-const blankPackingDraft = (): PackingDraft => ({ name: '', category: CATEGORIES[0], quantity: 1, packed: false });
+const blankPackingDraft = (): PackingDraft => ({ name: '', category: CATEGORIES[0], quantity: 1, packed: false, assignee: '', shared: false });
 const blankTaskDraft = (): TaskDraft => ({ title: '', dueOn: '', assignee: '', done: false });
 
 export default function PackingScreen() {
@@ -56,33 +57,44 @@ export default function PackingScreen() {
   const [formOpen, setFormOpen] = useState(false);
   const [formError, setFormError] = useState('');
 
+  const [filterSelection, setFilterSelection] = useState({ tripId: selectedTrip?.id, key: 'all' });
+  const filterKey = filterSelection.tripId === selectedTrip?.id ? filterSelection.key : 'all';
+  const setFilterKey = (key: string) => setFilterSelection({ tripId: selectedTrip?.id, key });
   const isTasks = mode === 'tasks';
-  const packedCount = packingItems.filter((item) => item.packed).length;
-  const doneCount = tasks.filter((task) => task.done).length;
-  const activeTotal = isTasks ? tasks.length : packingItems.length;
+  const filterOptions = preparationFilterOptions(members, isTasks ? tasks : packingItems, !isTasks);
+  const activeFilter = filterOptions.find((option) => option.key === filterKey) ?? filterOptions[0];
+  const filteredTasks = tasks.filter((task) => matchesPreparationFilter(task, activeFilter.filter));
+  const filteredPacking = packingItems.filter((item) => matchesPreparationFilter(item, activeFilter.filter));
+  const packedCount = filteredPacking.filter((item) => item.packed).length;
+  const doneCount = filteredTasks.filter((task) => task.done).length;
+  const activeTotal = isTasks ? filteredTasks.length : filteredPacking.length;
   const activeDone = isTasks ? doneCount : packedCount;
   const progress = activeTotal ? activeDone / activeTotal : 0;
-  const taskGroups = useMemo(() => [
-    { label: '未完了', items: tasks.filter((task) => !task.done) },
-    { label: '完了済み', items: tasks.filter((task) => task.done) },
-  ].filter((group) => group.items.length), [tasks]);
-  const packingGroups = useMemo(() => CATEGORIES.map((category) => ({
+  const taskGroups = [
+    { label: '未完了', items: filteredTasks.filter((task) => !task.done) },
+    { label: '完了済み', items: filteredTasks.filter((task) => task.done) },
+  ].filter((group) => group.items.length);
+  const packingGroups = CATEGORIES.map((category) => ({
     category,
-    items: packingItems.filter((item) => item.category === category),
-  })).filter((group) => group.items.length), [packingItems]);
+    items: filteredPacking.filter((item) => item.category === category),
+  })).filter((group) => group.items.length);
 
   const changeMode = (nextMode: Mode) => {
     setMode(nextMode);
+    if (filterKey === 'shared' && nextMode === 'tasks') setFilterKey('all');
     setFormOpen(false);
     setEditingId(null);
     setFormError('');
   };
 
   const openCreate = () => {
-    setInitialDraft(JSON.stringify(isTasks ? [blankTaskDraft(), false] : blankPackingDraft()));
+    const assignee = activeFilter.filter.kind === 'assignee' ? activeFilter.filter.value : '';
+    const packing = { ...blankPackingDraft(), assignee, shared: activeFilter.filter.kind === 'shared' };
+    const task = { ...blankTaskDraft(), assignee };
+    setInitialDraft(JSON.stringify(isTasks ? [task, false] : packing));
     setEditingId(null);
-    setPackingDraft(blankPackingDraft());
-    setTaskDraft(blankTaskDraft());
+    setPackingDraft(packing);
+    setTaskDraft(task);
     setHasDueDate(false);
     setFormError('');
     setFormOpen(true);
@@ -90,7 +102,7 @@ export default function PackingScreen() {
 
   const openPackingEdit = (item: PackingItem) => {
     setEditingId(item.id);
-    const draft = { name: item.name, category: item.category, quantity: item.quantity, packed: item.packed };
+    const draft = { name: item.name, category: item.category, quantity: item.quantity, packed: item.packed, assignee: item.assignee ?? '', shared: item.shared ?? false };
     setInitialDraft(JSON.stringify(draft));
     setPackingDraft(draft);
     setFormError('');
@@ -148,6 +160,8 @@ export default function PackingScreen() {
     category: item.category,
     quantity: item.quantity,
     packed: !item.packed,
+    assignee: item.assignee ?? '',
+    shared: item.shared ?? false,
   });
 
   const toggleTask = (task: TravelTask) => updateTask(task.id, {
@@ -204,10 +218,16 @@ export default function PackingScreen() {
           </Pressable>
         </View>
 
+        {selectedTrip ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters} contentContainerStyle={styles.filterContent}>
+          {filterOptions.map((option) => <Pressable key={option.key} accessibilityRole="button" accessibilityLabel={`${option.label}で絞り込む`} accessibilityState={{ selected: activeFilter.key === option.key }} onPress={() => setFilterKey(option.key)} style={[styles.filterChip, activeFilter.key === option.key && styles.categorySelected]}>
+            <Text numberOfLines={1} style={[styles.categoryText, activeFilter.key === option.key && styles.categoryTextSelected]}>{option.label}</Text>
+          </Pressable>)}
+        </ScrollView> : null}
+
         {selectedTrip && activeTotal ? (
           <View testID="preparation-progress" style={styles.progressCard}>
             <View style={styles.progressCopy}>
-              <Text style={styles.progressLabel}>{isTasks ? '完了したこと' : 'バッグに入れたもの'}</Text>
+              <Text style={styles.progressLabel}>{activeFilter.key === 'all' ? (isTasks ? '完了したこと' : 'バッグに入れたもの') : `${activeFilter.label}の準備`}</Text>
               <Text style={styles.progressValue}>{Math.round(progress * 100)}%</Text>
             </View>
             <View style={styles.progressTrack}>
@@ -231,6 +251,11 @@ export default function PackingScreen() {
             <Text style={styles.emptyTitle}>最初の持ち物を追加</Text>
             <Text style={styles.emptyBody}>＋ 持ち物を追加</Text>
           </Pressable>
+        ) : activeTotal === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>{activeFilter.label}の{isTasks ? 'やること' : '持ち物'}はありません</Text>
+            <Pressable accessibilityRole="button" onPress={() => setFilterKey('all')} style={styles.resetFilter}><Text style={styles.categoryText}>すべて表示</Text></Pressable>
+          </View>
         ) : isTasks ? (
           <View testID="preparation-groups" style={styles.groups}>
             {taskGroups.map((group) => (
@@ -258,7 +283,14 @@ export default function PackingScreen() {
                         <Text style={[styles.checkText, item.packed && styles.checkTextDone]}>{item.packed ? '✓' : ''}</Text>
                       </Pressable>
                       <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}を編集`} disabled={!canEdit} onPress={() => openPackingEdit(item)} style={({ pressed }) => [styles.rowCopy, pressed && styles.pressed]}>
-                        <Text style={[styles.itemName, item.packed && styles.itemDone]}>{item.name}</Text>
+                        <View style={styles.itemCopy}>
+                          <Text style={[styles.itemName, item.packed && styles.itemDone]}>{item.name}</Text>
+                          <View style={styles.packingMeta}>
+                            {item.shared ? <Text style={styles.sharedBadge}>共用</Text> : null}
+                            {item.assignee ? <MemberAvatar name={assigneeName(item.assignee, members)} avatarUrl={assignedMember(item.assignee, members)?.avatarUrl} size={20} /> : null}
+                            <Text style={[styles.itemMeta, { flexShrink: 1 }]}>{assigneeName(item.assignee ?? '', members)}</Text>
+                          </View>
+                        </View>
                         {item.quantity > 1 ? <Text style={styles.quantity}>× {item.quantity}</Text> : null}
                       </Pressable>
                       <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}を編集`} hitSlop={8} disabled={!canEdit} onPress={() => openPackingEdit(item)}><Text style={styles.editMark}>•••</Text></Pressable>
@@ -298,6 +330,13 @@ export default function PackingScreen() {
                 <>
                   <Text style={styles.label}>持ち物</Text>
                   <TextInput accessibilityLabel="持ち物" autoFocus maxLength={120} onChangeText={(name) => setPackingDraft((current) => ({ ...current, name }))} placeholder="例：モバイルバッテリー" placeholderTextColor={palette.placeholder} style={styles.input} value={packingDraft.name} />
+                  <Text style={styles.label}>使う人</Text>
+                  <View accessibilityRole="radiogroup" accessibilityLabel="使う人" style={styles.categoryList}>
+                    {[{ shared: false, label: '個人用' }, { shared: true, label: '共用' }].map((option) => <Pressable key={option.label} accessibilityRole="radio" aria-checked={Boolean(packingDraft.shared) === option.shared} onPress={() => setPackingDraft((current) => ({ ...current, shared: option.shared }))} style={[styles.categoryButton, Boolean(packingDraft.shared) === option.shared && styles.categorySelected]}><Text style={[styles.categoryText, Boolean(packingDraft.shared) === option.shared && styles.categoryTextSelected]}>{option.label}</Text></Pressable>)}
+                  </View>
+                  {packingDraft.shared ? <Text style={styles.sharedHint}>みんなで使う分をまとめて登録。準備済みのチェックも共有します。</Text> : null}
+                  <Text style={styles.label}>持ってくる担当</Text>
+                  <MemberPicker members={members} value={packingDraft.assignee ?? ''} onChange={(assignee) => setPackingDraft((current) => ({ ...current, assignee }))} />
                   <Text style={styles.label}>カテゴリー</Text>
                   <View style={styles.categoryList}>
                     {CATEGORIES.map((category) => <Pressable accessibilityRole="button" key={category} onPress={() => setPackingDraft((current) => ({ ...current, category }))} style={[styles.categoryButton, packingDraft.category === category && styles.categorySelected]}><Text style={[styles.categoryText, packingDraft.category === category && styles.categoryTextSelected]}>{category}</Text></Pressable>)}
@@ -320,6 +359,13 @@ export default function PackingScreen() {
 const createStyles = (palette: Palette) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.canvas },
   content: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: 20, paddingBottom: 112 },
+  filters: { marginHorizontal: -20, marginTop: 16, flexGrow: 0 },
+  filterContent: { paddingHorizontal: 20, gap: 8 },
+  filterChip: { minHeight: 44, maxWidth: 220, justifyContent: 'center', paddingHorizontal: 16, borderRadius: 999, backgroundColor: palette.mist },
+  resetFilter: { minHeight: 44, justifyContent: 'center', marginTop: 12 },
+  packingMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  sharedBadge: { overflow: 'hidden', color: palette.ocean, backgroundColor: palette.sky, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2, fontSize: 11, fontWeight: '700' },
+  sharedHint: { color: palette.slate, fontSize: 12, lineHeight: 18, marginTop: 8 },
   segmented: { flexDirection: 'row', backgroundColor: palette.sky, borderRadius: 14, padding: 4 },
   segment: { flex: 1, minHeight: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   segmentSelected: { backgroundColor: palette.paper },
@@ -331,7 +377,7 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   progressValue: { color: palette.ink, fontSize: 36, lineHeight: 40, fontWeight: '900', letterSpacing: -1.5 },
   progressTrack: { height: 10, backgroundColor: palette.paper, borderRadius: 999, overflow: 'hidden', marginTop: 18 },
   progressFill: { height: '100%', minWidth: 0, backgroundColor: palette.accent, borderRadius: 999 },
-  progressMeta: { color: palette.sky, fontSize: 12, lineHeight: 18, fontWeight: '700', marginTop: 11 },
+  progressMeta: { color: palette.slate, fontSize: 12, lineHeight: 18, fontWeight: '700', marginTop: 11 },
   empty: { backgroundColor: palette.paper, borderRadius: 28, alignItems: 'center', paddingHorizontal: 28, paddingVertical: 48, marginTop: 24 },
   emptyMark: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.sky, marginBottom: 16 },
   emptyMarkText: { color: palette.ink, fontSize: 24, lineHeight: 28, fontWeight: '500' },

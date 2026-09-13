@@ -28,6 +28,43 @@ async function fixture() {
   return { db, call, trip, removed };
 }
 const place = { title: '美術館', note: '展示', openingHours: '10:00–18:00', reservationStatus: 'needed', location: 'https://maps.app.goo.gl/abc', status: 'want' };
+test('packing assignment and shared status survive old clients, membership changes and schema reruns', async () => {
+  const { db, call, trip } = await fixture();
+  try {
+    const base = `/trips/${trip.id}/packing`, id = randomUUID();
+    const legacy = { id, name: '充電器', category: '電子機器', quantity: 1, packed: false };
+    const read = async () => (await (await call(base)).json()).items.find((item) => item.id === id);
+    assert.equal((await call(base, 'POST', legacy)).status, 201);
+    assert.equal((await read()).assignee, '');
+    assert.equal((await read()).shared, false);
+    const assigned = { ...legacy, assignee: 'member:editor', shared: true };
+    assert.equal((await call(`${base}/${id}`, 'PATCH', assigned)).status, 200);
+    assert.equal((await call(`${base}/${id}`, 'PATCH', { ...legacy, packed: true }, 'editor')).status, 200);
+    assert.equal((await read()).packed, true);
+    assert.equal((await read()).assignee, assigned.assignee);
+    assert.equal((await read()).shared, true);
+    assert.equal((await call(base, 'POST', legacy)).status, 201);
+    db.exec(await readFile('worker/schema.sql', 'utf8'));
+    assert.equal((await read()).assignee, assigned.assignee);
+    assert.equal((await read()).shared, true);
+    for (const patch of [{ assignee: 'member:outsider' }, { assignee: null }, { shared: 'yes' }, { shared: null }]) {
+      assert.equal((await call(`${base}/${id}`, 'PATCH', { ...assigned, ...patch })).status, 400);
+    }
+    assert.equal((await call(`${base}/${id}`, 'PATCH', assigned, 'outsider')).status, 403);
+    const other = { ...trip, id: randomUUID() };
+    assert.equal((await call('/trips', 'POST', other)).status, 201);
+    assert.equal((await call(`/trips/${other.id}/packing`, 'POST', { ...legacy, shared: false, assignee: '' })).status, 409);
+    assert.equal((await read()).shared, true);
+    db.prepare("DELETE FROM trip_members WHERE trip_id = ? AND user_id = 'editor'").run(trip.id);
+    assert.equal((await call(`${base}/${id}`, 'PATCH', assigned)).status, 200, 'retain an existing departed member');
+    assert.equal((await call(base, 'POST', { ...assigned, id: randomUUID() })).status, 400, 'cannot newly assign a departed member');
+    assert.equal((await call(`${base}/${id}`, 'PATCH', { ...assigned, assignee: '', shared: false })).status, 200);
+    assert.equal((await read()).assignee, '');
+    assert.equal((await read()).shared, false);
+    assert.equal((await call(`${base}/${id}`, 'DELETE')).status, 204);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM packing_details WHERE item_id = ?').get(id).n, 0);
+  } finally { db.close(); }
+});
 test('multiple place links and unavailable reservations round-trip without losing legacy data', async () => {
   const { db, call, trip } = await fixture();
   try {

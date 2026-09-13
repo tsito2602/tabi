@@ -53,7 +53,7 @@ export default function PlacesScreen() {
     if (!planning || !day || !canEdit) return;
     if (items.some((item) => item.id === planning.itineraryItemId)) { setPlanning(null); return; }
     const itineraryItemId = createItem({ title: planning.title, day, time: '', kind: '予定', note: [planning.note, planning.location].filter(Boolean).join('\n') });
-    updatePlace(planning.id, { ...planning, itineraryItemId, status: planning.status === 'want' ? 'planned' : planning.status });
+    updatePlace(planning.id, { ...planning, itineraryItemId, status: planning.status === 'visited' ? 'visited' : 'planned' });
     toast('しおりに追加しました'); setPlanning(null);
   };
   return <View style={styles.screen}>
