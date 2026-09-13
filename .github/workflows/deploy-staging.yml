@@ -22,6 +22,7 @@ jobs:
       GOOGLE_CLIENT_IDS: ${{ vars.GOOGLE_CLIENT_IDS }}
       ALLOWED_ORIGINS: https://tabi-staging.tsito-apps.workers.dev
       EXPO_PUBLIC_API_URL: https://tabi-staging.tsito-apps.workers.dev
+      EXPO_PUBLIC_ENABLE_DEMO: 'true'
       EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${{ vars.GOOGLE_IOS_CLIENT_ID }}
       EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ vars.GOOGLE_ANDROID_CLIENT_ID }}
       EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}

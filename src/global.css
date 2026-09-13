@@ -24,6 +24,9 @@
 }
 
 html, body { background: var(--canvas); overscroll-behavior-y: none; }
+/* Safari's collapsing toolbar can leave percentage-height app roots shorter
+   than the visible viewport. Fill the current viewport on mobile/PWA too. */
+html body #root { height: 100dvh; min-height: 0; }
 body { -webkit-tap-highlight-color: transparent; }
 [role="button"], [role="tab"], button { transition: background-color 180ms ease, color 180ms ease, opacity 160ms ease, transform 220ms cubic-bezier(.2,.8,.2,1); touch-action: manipulation; }
 [role="button"]:active, button:active { transform: scale(.975); }
@@ -83,7 +86,6 @@ a:focus-visible, button:focus-visible, [role="button"]:focus-visible, [role="tab
   .file-drop-button:not(:disabled):hover { background: #E6ECEF88; }
 }
 @media (min-width: 1024px) {
-  [data-testid="web-workspace"] { height: 100dvh; }
   [data-testid="route-transition"] { animation: none; }
   [data-testid="home-scroll"] > div, [data-testid="bookings-scroll"] > div, [data-testid="places-scroll"] > div, [data-testid="packing-scroll"] > div, [data-testid="members-scroll"] > div { max-width: 1280px !important; padding-left: 32px !important; padding-right: 32px !important; padding-bottom: 48px !important; }
   [data-testid="home-scroll"] > div { padding-top: 32px !important; }

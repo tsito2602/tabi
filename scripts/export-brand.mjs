@@ -33,7 +33,11 @@ for (const size of [192, 512]) {
   await png(`public/icon-dark-${size}.png`, dark, size);
 }
 await png('public/icon-maskable.png', svg('#FAFCFD', .72), 512);
-await png('public/apple-touch-icon.png', light, 180);
+// Match konogoro's flat white Web Clip background. iOS owns automatic dark
+// rendering; PWA metadata cannot select our native dark asset after installation.
+const touch = svg('#FFFFFF');
+await png('public/apple-touch-icon.png', touch, 180);
+await png('public/apple-touch-icon-v2.png', touch, 180);
 await png('public/apple-touch-icon-dark.png', dark, 180);
 // A single SVG favicon adapts without relying on competing media icon links.
 await writeFile('public/favicon.svg', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><style>.bg{fill:#FAFCFD}@media(prefers-color-scheme:dark){.bg{fill:#182A36}}</style><rect class="bg" width="1024" height="1024"/>${body}</svg>\n`);

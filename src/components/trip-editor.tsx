@@ -34,7 +34,7 @@ export function TripEditor({ trip, onClose, onSaved }: { trip?: Trip; onClose: (
     <Text style={styles.label}>トップ画像</Text>
     <CoverPicker value={coverImage} onChange={setCoverImage} />
     <Text style={styles.label}>旅行名</Text>
-    <TextInput accessibilityLabel="旅行名" maxLength={100} value={name} onChangeText={setName} placeholder="例：ウィーンの街を歩く" placeholderTextColor={palette.placeholder} returnKeyType="next" style={styles.input} />
+    <TextInput accessibilityLabel="旅行名" maxLength={100} value={name} onChangeText={setName} placeholder="例：秋のヨーロッパ旅行" placeholderTextColor={palette.placeholder} returnKeyType="next" style={styles.input} />
     <Text style={styles.label}>行き先（任意）</Text>
     <TextInput accessibilityLabel="行き先" maxLength={160} value={destination} onChangeText={setDestination} placeholder="都市・エリア" placeholderTextColor={palette.placeholder} style={styles.input} />
     <DateRangePicker startDate={startsOn} endDate={endsOn} label="旅行期間" onChange={(range) => { setStartsOn(range.startDate); setEndsOn(range.endDate); }} />

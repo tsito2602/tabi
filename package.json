@@ -1,7 +1,7 @@
 {
   "name": "tabi",
   "main": "expo-router/entry",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "dependencies": {
     "@expo/ui": "~57.0.14",
     "expo": "~57.0.17",
@@ -52,7 +52,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
-    "check": "npm run typecheck && npm run lint && npm run test:connections && npm run test:sync && npm run test:pwa && npm run test:theme && npm run build:web",
+    "check": "npm run typecheck && npm run lint && npm run test:connections && npm run test:sync && npm run test:pwa && npm run test:theme && npm run test:ui && npm run build:web",
     "test:connections": "node scripts/test-flight-connections.mjs",
     "test:sync": "node scripts/test-travel-sync.mjs",
     "preview": "APP_VARIANT=preview expo start --go",
@@ -64,7 +64,8 @@
     "build:web": "expo export --platform web && node scripts/build-pwa.mjs",
     "test:theme": "node scripts/test-theme.mjs",
     "test:pwa": "node scripts/test-pwa-api.mjs && node scripts/test-service-worker.mjs",
-    "icons:export": "node scripts/export-brand.mjs"
+    "icons:export": "node scripts/export-brand.mjs",
+    "test:ui": "node scripts/test-ui-boundaries.mjs"
   },
   "private": true
 }

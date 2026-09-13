@@ -33,7 +33,7 @@ export function CoverPicker({ value, onChange }: { value: string; onChange: (val
     finally { URL.revokeObjectURL(url); setBusy(false); }
   };
   return <View style={{ gap: 10 }}>
-    <FileDrop label={value ? '画像をドロップして変更' : 'カバー画像をドロップ'} hint="画像1枚・30MBまで" accept="image/*" disabled={busy} onFiles={(files) => select(files[0])}>
+    <FileDrop label={value ? '画像をドロップして変更' : 'カバー画像をドロップ'} selectLabel={value ? 'カバー画像を変更' : 'カバー画像を選択'} hint="画像1枚・30MBまで" accept="image/*" disabled={busy} onFiles={(files) => select(files[0])}>
       <TripCover image={value} />
     </FileDrop>
     {value ? <Pressable accessibilityRole="button" disabled={busy} onPress={() => onChange('')} style={styles.button}><Text style={styles.remove}>画像を解除</Text></Pressable> : null}

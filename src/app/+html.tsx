@@ -10,7 +10,7 @@ export default function Root({ children }: PropsWithChildren) {
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="tabi" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-v2.png" sizes="180x180" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <ScrollViewStyleReset />
   </head><body>{children}</body></html>;

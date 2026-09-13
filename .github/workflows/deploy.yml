@@ -23,6 +23,7 @@ jobs:
       GOOGLE_CLIENT_IDS: ${{ vars.GOOGLE_CLIENT_IDS_PRODUCTION || secrets.GOOGLE_CLIENT_IDS_PRODUCTION }}
       ALLOWED_ORIGINS: https://tabi.tsito-apps.workers.dev
       EXPO_PUBLIC_API_URL: https://tabi.tsito-apps.workers.dev
+      EXPO_PUBLIC_ENABLE_DEMO: 'false'
       EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID_PRODUCTION || secrets.GOOGLE_WEB_CLIENT_ID_PRODUCTION }}
     steps:
       - uses: actions/checkout@v4

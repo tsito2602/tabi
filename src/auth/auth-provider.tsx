@@ -10,6 +10,7 @@ WebBrowser.maybeCompleteAuthSession();
 type User = { id: string; email: string; name: string | null; avatarUrl?: string | null };
 type AuthContextValue = {
   configured: boolean;
+  demoEnabled: boolean;
   isDemo: boolean;
   startDemo: () => void;
   exitDemo: () => void;
@@ -27,6 +28,7 @@ type AuthContextValue = {
 const SESSION_KEY = 'tabi.session';
 const USER_KEY = 'tabi.offline-user';
 const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ?? '';
+const DEMO_ENABLED = __DEV__ || Constants.expoConfig?.extra?.preview === true || process.env.EXPO_PUBLIC_ENABLE_DEMO === 'true';
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function readToken() {
@@ -73,7 +75,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const configured = Boolean(API_URL && clientId && !isExpoGo && !Constants.expoConfig?.extra?.preview);
   const [isDemo, setIsDemo] = useState(false);
   const [demoName, setDemoName] = useState('あなた');
-  const startDemo = useCallback(() => { if (Platform.OS === 'web') localStorage.setItem('tabi.demo-active', '1'); setIsDemo(true); }, []);
+  const startDemo = useCallback(() => { if (!DEMO_ENABLED) return; if (Platform.OS === 'web') localStorage.setItem('tabi.demo-active', '1'); setIsDemo(true); }, []);
   const exitDemo = useCallback(() => { if (Platform.OS === 'web') localStorage.removeItem('tabi.demo-active'); setIsDemo(false); }, []);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,7 +96,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
     let active = true;
     void readToken()
       .then(async (token) => {
-        if (active && Platform.OS === 'web' && localStorage.getItem('tabi.demo-active') === '1') setIsDemo(true);
+        if (Platform.OS === 'web') {
+          if (!DEMO_ENABLED) localStorage.removeItem('tabi.demo-active');
+          else if (active && localStorage.getItem('tabi.demo-active') === '1') setIsDemo(true);
+        }
         if (!token) return;
         // Offline identity only unlocks this account's local cache. The API still
         // verifies the bearer session for every server read and write.
@@ -207,7 +212,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [isDemo, requestApi]);
 
   const value = useMemo(
-    () => ({ configured, isDemo, startDemo, exitDemo, loading, signingIn, user: isDemo ? { id: 'demo-self', email: '', name: demoName } : user, error, request: requestApi, requestRaw, signIn, signOut, updateProfile }),
+    () => ({ configured, demoEnabled: DEMO_ENABLED, isDemo, startDemo, exitDemo, loading, signingIn, user: isDemo ? { id: 'demo-self', email: '', name: demoName } : user, error, request: requestApi, requestRaw, signIn, signOut, updateProfile }),
     [configured, isDemo, demoName, startDemo, exitDemo, error, loading, requestApi, requestRaw, signIn, signOut, signingIn, user, updateProfile],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

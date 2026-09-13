@@ -12,7 +12,7 @@ export function AuthGate({ children }: PropsWithChildren) {
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
 
-  const { configured, error, loading, signingIn, signIn, user, isDemo, startDemo } = useAuth();
+  const { configured, demoEnabled, error, loading, signingIn, signIn, user, isDemo, startDemo } = useAuth();
   if (loading) {
     return (
       <SafeAreaView style={styles.center}>
@@ -34,8 +34,8 @@ export function AuthGate({ children }: PropsWithChildren) {
           style={({ pressed }) => [styles.button, pressed && styles.pressed, (signingIn || !configured) && styles.disabled]}>
           {signingIn ? <ActivityIndicator color={palette.paper} /> : <Text style={styles.buttonText}>Googleで続ける</Text>}
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={startDemo} style={styles.sampleButton}><Text style={styles.sampleText}>サンプルの旅行で試す</Text></Pressable>
-        {!configured && <Text style={styles.note}>このプレビューではサンプルの旅行を利用できます</Text>}
+        {demoEnabled && <Pressable accessibilityRole="button" onPress={startDemo} style={styles.sampleButton}><Text style={styles.sampleText}>サンプルの旅行で試す</Text></Pressable>}
+        {!configured && demoEnabled && <Text style={styles.note}>このプレビューではサンプルの旅行を利用できます</Text>}
         {error && <Text style={styles.error}>{error}</Text>}
       </View>
     </SafeAreaView>

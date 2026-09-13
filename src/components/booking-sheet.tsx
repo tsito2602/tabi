@@ -161,16 +161,17 @@ function BookingDetails({ booking, documents }: { booking: Booking; documents: B
       {booking.kind === 'flight' ? <Text style={styles.placeName}>時刻は各空港の現地時刻</Text> : null}
     </View>
     {booking.confirmationCode ? <View style={styles.confirmation}><View style={styles.confirmationCopy}><Text style={styles.label}>予約・確認番号</Text><Text selectable accessibilityLabel={`予約番号 ${booking.confirmationCode}`} style={styles.confirmationCode}>{booking.confirmationCode}</Text></View><CopyButton key={booking.confirmationCode} value={booking.confirmationCode} /></View> : null}
-    <BookingDocuments bookingId={booking.id} documents={documents} />
+    <BookingDocuments bookingId={booking.id} documents={documents} readOnly />
     {booking.note ? <View style={styles.noteBlock}><Text style={styles.label}>メモ</Text><Text selectable style={styles.detailBody}>{booking.note}</Text></View> : null}
   </>;
 }
 
-function BookingDocuments({ bookingId, documents }: { bookingId: string; documents: BookingDocument[] }) {
+function BookingDocuments({ bookingId, documents, readOnly = false }: { bookingId: string; documents: BookingDocument[]; readOnly?: boolean }) {
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
 
-  const { canEdit, deleteBookingDocument, downloadBookingDocument, uploadBookingDocument } = useTravel();
+  const { canEdit: canEditTrip, deleteBookingDocument, downloadBookingDocument, uploadBookingDocument } = useTravel();
+  const canEdit = canEditTrip && !readOnly;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
 
@@ -264,7 +265,7 @@ function BookingDocuments({ bookingId, documents }: { bookingId: string; documen
 
   return <View style={styles.documentsSection}>
     <View style={styles.documentsHeading}><Text style={styles.label}>書類</Text>{Platform.OS !== 'web' && canEdit ? <Pressable accessibilityRole="button" disabled={Boolean(busy)} onPress={addDocuments} style={({ pressed }) => [styles.documentAddButton, pressed && styles.pressed]}><Text style={styles.documentAddText}>＋ 画像・PDF</Text></Pressable> : null}</View>
-    {Platform.OS === 'web' && canEdit ? <FileDrop label="この予約に書類をドロップ" hint="画像・PDF / 1ファイル20MBまで・複数選択可" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" multiple disabled={Boolean(busy)} onFiles={uploadFiles} /> : null}
+    {Platform.OS === 'web' && canEdit ? <FileDrop label="この予約に書類をドロップ" selectLabel="画像・PDFを選択" hint="画像・PDF / 1ファイル20MBまで・複数選択可" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" multiple disabled={Boolean(busy)} onFiles={uploadFiles} /> : null}
     {documents.length ? <View style={styles.documentList}>{documents.map((document) => <View key={document.id} style={styles.documentRow}>
       <View style={styles.documentIcon}><Text style={styles.documentIconText}>{document.contentType === 'application/pdf' ? 'PDF' : 'IMG'}</Text></View>
       <Pressable accessibilityRole="button" accessibilityLabel={`${document.filename}を開く`} disabled={Boolean(busy)} onPress={() => openDocument(document)} style={({ pressed }) => [styles.documentCopy, pressed && styles.pressed]}>
@@ -272,7 +273,7 @@ function BookingDocuments({ bookingId, documents }: { bookingId: string; documen
       </Pressable>
       {Platform.OS === 'web' ? <Pressable accessibilityRole="button" accessibilityLabel={`${document.filename}をダウンロード`} disabled={Boolean(busy)} onPress={() => void downloadDocument(document)} style={{ padding: 12 }}><Text style={{ color: palette.ocean, fontSize: 12, fontWeight: '600' }}>保存 ↓</Text></Pressable> : null}
       {busy === document.id ? <ActivityIndicator color={palette.ocean} size="small" /> : canEdit ? <Pressable accessibilityRole="button" accessibilityLabel={`${document.filename}を削除`} disabled={Boolean(busy)} onPress={() => removeDocument(document)} style={styles.documentDelete}><Text style={styles.documentDeleteText}>×</Text></Pressable> : null}
-    </View>)}</View> : Platform.OS !== 'web' || !canEdit ? <View style={styles.documentEmpty}><Text style={styles.documentEmptyText}>画像やPDFを追加できます</Text></View> : null}
+    </View>)}</View> : Platform.OS !== 'web' || !canEdit ? <View style={styles.documentEmpty}><Text style={styles.documentEmptyText}>{canEdit ? '画像やPDFを追加できます' : '書類はありません'}</Text></View> : null}
     {progress ? <Text accessibilityLiveRegion="polite" style={styles.documentMeta}>{progress}</Text> : null}
     {busy === 'upload' ? <View style={styles.uploading}><ActivityIndicator color={palette.ocean} size="small" /><Text style={styles.uploadingText}>アップロード中</Text></View> : null}
     {error ? <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
