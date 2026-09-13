@@ -287,14 +287,13 @@ export default function ItineraryScreen() {
     if (visibleDay && visibleDay !== visibleActiveDay) setActiveDay(visibleDay);
   };
 
-  const openAdd = (between?: { from: TimelineEntry; to: TimelineEntry }) => {
+  const openAdd = () => {
     if (!selectedTrip) return;
     setViewingItemId(null);
     setEditingId(null);
-    const startDay = between?.from.day || visibleActiveDay || selectedTrip.startsOn;
-    const startTime = between ? (between.from.item ? itemDetails(between.from.item).endDay && itemDetails(between.from.item).endDay !== startDay ? '' : itemDetails(between.from.item).endTime || between.from.time : between.from.time) : '10:00';
-    const endpoint = (entry: TimelineEntry) => entry.item ? places.find((place) => place.itineraryItemId === entry.item!.id)?.title || itemDetails(entry.item).location || entry.title : entry.bookingEndpoint === 'end' ? entry.booking?.destination || entry.booking?.location || entry.title : entry.booking?.origin || entry.booking?.location || entry.title;
-    const details: ItineraryDetails = between ? { ...emptyItineraryDetails('transport'), transport: { mode: 'walk', origin: endpoint(between.from), destination: endpoint(between.to), afterKey: between.from.key } } : emptyItineraryDetails();
+    const startDay = visibleActiveDay || selectedTrip.startsOn;
+    const startTime = '10:00';
+    const details = emptyItineraryDetails();
     setDay(startDay);
     setTime(startTime);
     setPlanDetails(details);
@@ -443,7 +442,6 @@ export default function ItineraryScreen() {
                       </View>
                       <Text style={styles.chevron}>›</Text>
                     </Pressable>}
-                    {canEdit && next && !isTransport && !nextTransport && !(entry.booking && entry.booking.id === next.booking?.id) && !connection ? <Pressable accessibilityRole="button" accessibilityLabel={`${entry.title}と${next.title}の間に移動を追加`} onPress={() => openAdd({ from: entry, to: next })} style={styles.insertTransport}><Text style={styles.insertTransportText}>＋ 移動</Text></Pressable> : null}
                     {connection ? <ConnectionRow disabled={!canEdit} connection={connection} continueRail={connectedDepartures.has(connection.departureBookingId)} nextFlight={bookings.find((flight) => flight.id === connection.departureBookingId)} onPress={() => setConnectionBookingId(connection.arrivalBookingId)} />
                       : canEdit && isLinkedEnd && entry.booking?.kind === 'flight' && hasLikelyFlightConnection(entry.booking, bookings)
                         ? <View style={styles.connectionAction}><FlightConnectionLink compact booking={entry.booking} onPress={() => setConnectionBookingId(entry.booking!.id)} /></View> : null}
@@ -516,8 +514,7 @@ function TransportRow({ item, hasPrevious, hasNext, onPress }: { item: Itinerary
     </View>
     <View style={styles.connectionCopy}>
       <View style={styles.connectionHeading}><Text style={styles.transportMode}>{transportLabel(details)}</Text><Text style={styles.connectionDuration}>{durationLabel(durationMinutes(item.day, item.time, details))}</Text></View>
-      <Text style={styles.transportRoute}>{route || item.title}</Text>
-      {route && item.title !== route && item.title !== `${transportLabel(details)}で移動` ? <Text style={styles.connectionNext}>{item.title}</Text> : null}
+      {item.title !== route.slice(0, 160) && item.title !== `${transportLabel(details)}で移動` ? <Text style={styles.connectionNext}>{item.title}</Text> : null}
     </View><Text style={styles.chevron}>›</Text>
   </Pressable>;
 }
@@ -572,9 +569,6 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   transportTimeText: { color: palette.slate, fontFamily: mono, fontSize: 12, fontWeight: '600' },
   transportIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: palette.paper, alignItems: 'center', justifyContent: 'center' },
   transportMode: { color: palette.ocean, fontSize: 12, fontWeight: '700' },
-  transportRoute: { color: palette.slate, fontSize: 13, lineHeight: 20 },
-  insertTransport: { minHeight: 44, paddingLeft: 130, paddingRight: 16, justifyContent: 'center', alignItems: 'flex-start' },
-  insertTransportText: { color: palette.ocean, fontSize: 11, fontWeight: '600' },
   daySection: { backgroundColor: palette.paper },
   dateBar: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.mist, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: palette.ash, paddingHorizontal: 20, position: 'relative', zIndex: 2 },
   dateBarDivider: { borderTopWidth: StyleSheet.hairlineWidth },
