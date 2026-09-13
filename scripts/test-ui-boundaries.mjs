@@ -86,6 +86,7 @@ test('reservation details retain file viewing but expose mutations only in editi
       '@/theme/theme-provider': theme, 'react-native': native,
       './file-drop': { FileDrop: () => React.createElement('input', { type: 'file' }) },
       'expo-document-picker': {}, 'expo-file-system': {}, 'expo-sharing': {},
+      'expo-symbols': {}, '@/data/places': {},
       '@/components/toast': { useToast: () => ({ show: noop }) },
       '@/components/copy-button': {}, '@/components/form-sheet': {}, '@/components/booking-route': {}, '@/components/date-range-picker': {},
       '@/constants/design': {}, '@/data/airports': {}, '@/data/booking-match': {},

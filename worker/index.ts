@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
+import { mapUrl } from '../src/data/places';
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { connectionBetween, createsFlightConnectionCycle, type FlightConnectionInput } from '../src/data/flight-connections';
@@ -296,7 +297,9 @@ const bookingKinds = new Set(['flight', 'hotel', 'train', 'car', 'restaurant', '
 function bookingFields(body: Record<string, unknown>) {
   const kind = textField(body.kind, 24, true);
   const title = textField(body.title, 160, true);
-  const detail = textField(body.detail, 500);
+  const detail = textField(body.detail, kind === 'hotel' ? 2000 : 500);
+  const location = body.location === undefined ? undefined : textField(body.location, 2000);
+  if (location === null || (location && !mapUrl(location))) return null;
   const origin = textField(body.origin, 160);
   const originCode = textField(body.originCode, 8);
   const destination = textField(body.destination, 160);
@@ -308,7 +311,7 @@ function bookingFields(body: Record<string, unknown>) {
   const confirmationCode = textField(body.confirmationCode, 120);
   const note = textField(body.note, 4000);
   if (!kind || !bookingKinds.has(kind) || !title || detail === null || origin === null || originCode === null || destination === null || destinationCode === null || !day || !endDay || endDay < day || time === null || endTime === null || !/^([01]\d|2[0-3]):[0-5]\d$|^$/.test(time) || !/^([01]\d|2[0-3]):[0-5]\d$|^$/.test(endTime) || confirmationCode === null || note === null) return null;
-  return { kind, title, detail, origin, originCode: originCode.toUpperCase(), destination, destinationCode: destinationCode.toUpperCase(), day, time, endDay, endTime, confirmationCode, note };
+  return { kind, title, detail, ...(location !== undefined ? { location } : {}), origin, originCode: originCode.toUpperCase(), destination, destinationCode: destinationCode.toUpperCase(), day, time, endDay, endTime, confirmationCode, note };
 }
 
 async function listBookings(env: Env, user: User, tripId: string) {
@@ -320,12 +323,14 @@ async function listBookings(env: Env, user: User, tripId: string) {
 async function readBookings(env: Env, tripId: string) {
   const result = await env.DB.prepare(`
     SELECT b.id, b.kind, b.title, b.detail, b.day, b.time,
+           COALESCE(l.location, CASE WHEN b.kind = 'hotel' THEN b.detail ELSE '' END) AS location,
            COALESCE(d.origin, '') AS origin, COALESCE(d.origin_code, '') AS originCode,
            COALESCE(d.destination, '') AS destination, COALESCE(d.destination_code, '') AS destinationCode,
            COALESCE(NULLIF(d.end_day, ''), b.day) AS endDay, COALESCE(d.end_time, '') AS endTime,
            b.confirmation_code AS confirmationCode, b.note, b.updated_by AS updatedBy, b.updated_at AS updatedAt,
            COALESCE(c.mode, 'auto') AS connectionMode, c.departure_booking_id AS nextFlightId
     FROM bookings b LEFT JOIN booking_details d ON d.booking_id = b.id
+    LEFT JOIN booking_locations l ON l.booking_id = b.id
     LEFT JOIN flight_connection_preferences c ON c.arrival_booking_id = b.id
     WHERE b.trip_id = ? ORDER BY b.day, b.time, b.id
   `)
@@ -397,6 +402,11 @@ async function createBooking(request: Request, env: Env, user: User, tripId: str
         destination = excluded.destination, destination_code = excluded.destination_code,
         end_day = excluded.end_day, end_time = excluded.end_time
     `).bind(id, fields.origin, fields.originCode, fields.destination, fields.destinationCode, fields.endDay, fields.endTime, id, tripId),
+    ...(fields.location === undefined ? [] : [env.DB.prepare(`
+      INSERT INTO booking_locations (booking_id, location)
+      SELECT ?, ? WHERE EXISTS (SELECT 1 FROM bookings WHERE id = ? AND trip_id = ?)
+      ON CONFLICT(booking_id) DO UPDATE SET location = excluded.location
+    `).bind(id, fields.location, id, tripId)]),
   ]);
   if (!bookingResult.meta.changes) return json({ error: '予約IDが競合しました' }, 409);
   return json({ booking: { id, ...fields, updatedBy: user.id } }, 201);
@@ -419,6 +429,11 @@ async function updateBooking(request: Request, env: Env, user: User, tripId: str
         destination = excluded.destination, destination_code = excluded.destination_code,
         end_day = excluded.end_day, end_time = excluded.end_time
     `).bind(bookingId, fields.origin, fields.originCode, fields.destination, fields.destinationCode, fields.endDay, fields.endTime, bookingId, tripId),
+    ...(fields.location === undefined ? [] : [env.DB.prepare(`
+      INSERT INTO booking_locations (booking_id, location)
+      SELECT ?, ? WHERE EXISTS (SELECT 1 FROM bookings WHERE id = ? AND trip_id = ?)
+      ON CONFLICT(booking_id) DO UPDATE SET location = excluded.location
+    `).bind(bookingId, fields.location, bookingId, tripId)]),
   ]);
   return bookingResult.meta.changes ? json({ booking: { id: bookingId, ...fields, updatedBy: user.id } }) : json({ error: '予約が見つかりません' }, 404);
 }

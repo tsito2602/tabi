@@ -13,7 +13,7 @@ import { Booking, BookingDocument, emptyTravelCache, ItineraryItem, PackingItem,
 
 type TripInput = Pick<Trip, 'name' | 'destination' | 'startsOn' | 'endsOn' | 'coverImage'>;
 type ItemInput = Pick<ItineraryItem, 'day' | 'time' | 'kind' | 'title' | 'note'>;
-type BookingInput = Pick<Booking, 'kind' | 'title' | 'detail' | 'origin' | 'originCode' | 'destination' | 'destinationCode' | 'day' | 'time' | 'endDay' | 'endTime' | 'confirmationCode' | 'note'>;
+type BookingInput = Pick<Booking, 'kind' | 'title' | 'detail' | 'location' | 'origin' | 'originCode' | 'destination' | 'destinationCode' | 'day' | 'time' | 'endDay' | 'endTime' | 'confirmationCode' | 'note'>;
 type PackingInput = Pick<PackingItem, 'name' | 'category' | 'quantity' | 'packed'>;
 type TaskInput = Pick<TravelTask, 'title' | 'dueOn' | 'assignee' | 'done'>;
 type BookingDocumentInput = { filename: string; contentType: string; size: number; bytes: ArrayBuffer };

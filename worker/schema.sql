@@ -181,3 +181,9 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   avatar_url TEXT
 );
+
+-- Optional location metadata preserves existing booking rows and repeatable deployment.
+CREATE TABLE IF NOT EXISTS booking_locations (
+  booking_id TEXT PRIMARY KEY REFERENCES bookings(id) ON DELETE CASCADE,
+  location TEXT NOT NULL DEFAULT ''
+);

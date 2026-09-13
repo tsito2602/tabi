@@ -180,3 +180,35 @@ test('task assignments use current trip members and preserve existing legacy ass
     assert.equal((await call(base, 'POST', { ...task, id: randomUUID() })).status, 400);
   } finally { db.close(); }
 });
+
+test('booking map locations preserve legacy addresses and round-trip URLs safely', async () => {
+  const { db, call, trip } = await fixture();
+  try {
+    const base = `/trips/${trip.id}/bookings`;
+    const input = { id: randomUUID(), kind: 'hotel', title: 'Hotel Astoria', detail: 'Kärntner Straße 32, Wien', day: '2026-11-22', endDay: '2026-11-24', time: '15:00', endTime: '11:00' };
+    assert.equal((await call(base, 'POST', input)).status, 201);
+    const read = async () => (await (await call(base)).json()).bookings.find((booking) => booking.id === input.id);
+    assert.equal((await read()).location, input.detail);
+    const location = `https://www.google.com/maps/place/${'a'.repeat(700)}`;
+    assert.equal((await call(`${base}/${input.id}`, 'PATCH', { ...input, detail: location, location })).status, 200);
+    assert.equal((await read()).location, location);
+    // A queued write from an older client must not clear the newly saved URL.
+    assert.equal((await call(`${base}/${input.id}`, 'PATCH', input)).status, 200);
+    assert.equal((await read()).location, location);
+    for (const location of ['javascript:alert(1)', 'https://', 'a'.repeat(2001)]) {
+      assert.equal((await call(`${base}/${input.id}`, 'PATCH', { ...input, location })).status, 400);
+    }
+    assert.equal((await call(`${base}/${input.id}`, 'PATCH', { ...input, location: 'Tokyo' }, 'outsider')).status, 403);
+    assert.equal((await read()).location, location);
+    assert.equal((await call(`${base}/${input.id}`, 'PATCH', { ...input, location: '' })).status, 200);
+    assert.equal((await read()).location, '');
+    const restaurant = { ...input, id: randomUUID(), kind: 'restaurant', detail: '2名・テーブル席', location: 'https://maps.app.goo.gl/example' };
+    assert.equal((await call(base, 'POST', restaurant)).status, 201);
+    assert.equal((await call(base, 'POST', restaurant)).status, 201);
+    const dining = (await (await call(base)).json()).bookings.find((booking) => booking.id === restaurant.id);
+    assert.equal(dining.location, restaurant.location);
+    assert.equal(dining.detail, restaurant.detail);
+    assert.equal((await call(`${base}/${input.id}`, 'DELETE')).status, 204);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM booking_locations WHERE booking_id = ?').get(input.id).n, 0);
+  } finally { db.close(); }
+});

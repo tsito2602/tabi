@@ -1,9 +1,11 @@
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { FileDrop, type DroppedFile } from './file-drop';
 import { type ComponentProps, type Dispatch, type SetStateAction, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
+import { SymbolView } from 'expo-symbols';
+import { mapUrl } from '@/data/places';
 import * as Sharing from 'expo-sharing';
 import { useToast } from '@/components/toast';
 import { CopyButton } from '@/components/copy-button';
@@ -29,14 +31,14 @@ export const BOOKING_KINDS: { value: BookingKind; label: string; short: string; 
   { value: 'other', label: 'その他', short: 'OTHER', icon: '＋' },
 ];
 
-type Draft = Pick<Booking, 'kind' | 'title' | 'detail' | 'origin' | 'originCode' | 'destination' | 'destinationCode' | 'day' | 'time' | 'endDay' | 'endTime' | 'confirmationCode' | 'note'>;
+type Draft = Pick<Booking, 'kind' | 'title' | 'detail' | 'location' | 'origin' | 'originCode' | 'destination' | 'destinationCode' | 'day' | 'time' | 'endDay' | 'endTime' | 'confirmationCode' | 'note'>;
 
 function blankDraft(day: string, kind: BookingKind = 'flight'): Draft {
   const defaults: Record<BookingKind, [string, string]> = {
     flight: ['10:00', '12:00'], hotel: ['15:00', '11:00'], train: ['09:00', '11:00'], car: ['09:00', '18:00'],
     restaurant: ['19:00', '19:00'], ticket: ['10:00', '10:00'], other: ['10:00', '10:00'],
   };
-  return { kind, title: '', detail: '', origin: '', originCode: '', destination: '', destinationCode: '', day, time: defaults[kind][0], endDay: kind === 'hotel' && day ? addDays(day, 1) : day, endTime: defaults[kind][1], confirmationCode: '', note: '' };
+  return { kind, title: '', detail: '', location: '', origin: '', originCode: '', destination: '', destinationCode: '', day, time: defaults[kind][0], endDay: kind === 'hotel' && day ? addDays(day, 1) : day, endTime: defaults[kind][1], confirmationCode: '', note: '' };
 }
 
 export function BookingSheet({ booking, onClose }: { booking?: Booking; onClose: () => void }) {
@@ -46,6 +48,7 @@ export function BookingSheet({ booking, onClose }: { booking?: Booking; onClose:
   const { canEdit, createBooking, deleteBooking, deleteItem, documentsByBooking, items, selectedTrip, updateBooking } = useTravel();
   const [draft, setDraft] = useState<Draft>(() => booking ? {
     kind: booking.kind, title: booking.title, detail: booking.detail,
+    location: booking.location ?? (booking.kind === 'hotel' ? booking.detail : ''),
     origin: booking.origin, originCode: booking.originCode,
     destination: booking.destination, destinationCode: booking.destinationCode,
     day: booking.day, time: booking.time, endDay: booking.endDay, endTime: booking.endTime,
@@ -77,10 +80,16 @@ export function BookingSheet({ booking, onClose }: { booking?: Booking; onClose:
       setFormError('終了時刻は開始時刻以降にしてください');
       return;
     }
+    const location = draft.location?.trim() ?? '';
+    if (location && !mapUrl(location)) {
+      setFormError('場所は住所か、http / httpsのURLを入力してください');
+      return;
+    }
     const input = {
       ...draft,
       title: draft.title.trim(),
-      detail: draft.detail.trim(),
+      detail: draft.kind === 'hotel' ? location : draft.detail.trim(),
+      location,
       origin: draft.origin.trim(),
       destination: draft.destination.trim(),
       confirmationCode: draft.confirmationCode.trim(),
@@ -144,6 +153,11 @@ export function BookingSheet({ booking, onClose }: { booking?: Booking; onClose:
 }
 
 function BookingDetails({ booking, documents }: { booking: Booking; documents: BookingDocument[] }) {
+  const palette = usePalette();
+  const toast = useToast();
+  const hasLocation = ['hotel', 'restaurant', 'ticket', 'other'].includes(booking.kind);
+  const location = booking.location ?? (booking.kind === 'hotel' ? booking.detail : '');
+  const url = hasLocation ? mapUrl(location, booking.title) : null;
   const styles = useThemedStyles(createStyles);
 
   const kind = BOOKING_KINDS.find((entry) => entry.value === booking.kind);
@@ -153,13 +167,20 @@ function BookingDetails({ booking, documents }: { booking: Booking; documents: B
       <Text style={styles.detailKind}>{kind?.label}</Text>
       <Text style={styles.detailTitle}>{booking.title}</Text>
       {route ? <BookingRoute booking={booking} /> : null}
-      {booking.detail ? <Text selectable style={styles.detailBody}>{booking.detail}</Text> : null}
+      {booking.detail && booking.kind !== 'hotel' ? <Text selectable style={styles.detailBody}>{booking.detail}</Text> : null}
       <View style={styles.detailDates}>
         <View style={styles.dateColumn}><Text style={styles.label}>{booking.kind === 'hotel' ? 'チェックイン' : route ? '出発' : '開始'}</Text><Text style={styles.detailTime}>{booking.time || '時刻未定'}</Text><Text style={styles.placeName}>{formatDate(booking.day, true)}</Text></View>
         {booking.endDay && (booking.endDay !== booking.day || booking.endTime !== booking.time) ? <View style={styles.dateColumn}><Text style={styles.label}>{booking.kind === 'hotel' ? 'チェックアウト' : route ? '到着' : '終了'}</Text><Text style={styles.detailTime}>{booking.endTime || '時刻未定'}</Text><Text style={styles.placeName}>{formatDate(booking.endDay, true)}</Text></View> : null}
       </View>
       {booking.kind === 'flight' ? <Text style={styles.placeName}>時刻は各空港の現地時刻</Text> : null}
     </View>
+    {hasLocation ? <View style={styles.locationBlock}>
+      {location && !/^https?:\/\//i.test(location) ? <Text selectable style={styles.detailBody}>{location}</Text> : null}
+      {url ? <Pressable accessibilityRole="button" accessibilityLabel={`${booking.title}の地図を開く`} onPress={() => { void Linking.openURL(url).catch(() => toast('地図を開けませんでした')); }} style={styles.mapButton}>
+        <SymbolView name={{ ios: 'map', android: 'map', web: 'map' }} size={20} tintColor={palette.ocean} />
+        <Text style={styles.mapButtonText}>地図を開く</Text>
+      </Pressable> : null}
+    </View> : null}
     {booking.confirmationCode ? <View style={styles.confirmation}><View style={styles.confirmationCopy}><Text style={styles.label}>予約・確認番号</Text><Text selectable accessibilityLabel={`予約番号 ${booking.confirmationCode}`} style={styles.confirmationCode}>{booking.confirmationCode}</Text></View><CopyButton key={booking.confirmationCode} value={booking.confirmationCode} /></View> : null}
     <BookingDocuments bookingId={booking.id} documents={documents} readOnly />
     {booking.note ? <View style={styles.noteBlock}><Text style={styles.label}>メモ</Text><Text selectable style={styles.detailBody}>{booking.note}</Text></View> : null}
@@ -326,7 +347,7 @@ function BookingFormFields({ draft, setDraft }: { draft: Draft; setDraft: Dispat
 
   if (draft.kind === 'hotel') return <>
     <Field label="ホテル名" placeholder="例：Hotel Astoria Vienna" value={draft.title} onChangeText={(value) => set('title', value)} />
-    <Field label="住所・エリア" placeholder="例：ウィーン旧市街" value={draft.detail} onChangeText={(value) => set('detail', value)} />
+    <LocationField value={draft.location ?? ''} onChangeText={(value) => set('location', value)} />
     {dateTimeRange('宿泊期間', 'チェックイン', 'チェックアウト')}
     {confirmation()}
   </>;
@@ -350,6 +371,7 @@ function BookingFormFields({ draft, setDraft }: { draft: Draft; setDraft: Dispat
   return <>
     <Field label={config.title} placeholder={config.titlePlaceholder} value={draft.title} onChangeText={(value) => set('title', value)} />
     <Field label={config.detail} placeholder={config.detailPlaceholder} value={draft.detail} onChangeText={(value) => set('detail', value)} />
+    <LocationField value={draft.location ?? ''} onChangeText={(value) => set('location', value)} />
     {singleDateTime(`${config.date}・${config.time}`, config.date)}
     {confirmation()}
   </>;
@@ -376,6 +398,14 @@ function AirportField({ code, label, onChange, onChangeText, placeholder, value 
   </View>;
 }
 
+function LocationField({ value, onChangeText }: { value: string; onChangeText: (value: string) => void }) {
+  const styles = useThemedStyles(createStyles);
+  return <View style={styles.field}>
+    <Field label="場所" placeholder="URL または住所" value={value} onChangeText={onChangeText} maxLength={2000} autoCapitalize="none" autoCorrect={false} />
+    <Text style={styles.locationHint}>Google Mapsの共有URLがおすすめです</Text>
+  </View>;
+}
+
 function Field({ label, ...props }: { label: string } & ComponentProps<typeof TextInput>) {
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
@@ -395,6 +425,10 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   confirmationCopy: { flex: 1 },
   confirmationCode: { color: palette.ink, fontSize: 21, fontWeight: '700', marginTop: 8 },
   detailBody: { fontSize: 15, color: palette.ink, lineHeight: 24 },
+  locationBlock: { gap: 12 },
+  locationHint: { color: palette.smoke, fontSize: 11, lineHeight: 17 },
+  mapButton: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: palette.sky, borderRadius: 12 },
+  mapButtonText: { color: palette.ocean, fontSize: 14, fontWeight: '700' },
   noteBlock: { gap: 8, padding: 8 },
   kindList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: -8 },
   kindButton: { minHeight: 38, justifyContent: 'center', backgroundColor: palette.paper, borderRadius: 64, paddingHorizontal: 14 },

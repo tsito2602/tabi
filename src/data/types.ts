@@ -33,6 +33,7 @@ export type Booking = {
   kind: BookingKind;
   title: string;
   detail: string;
+  location?: string;
   origin: string;
   originCode: string;
   destination: string;
