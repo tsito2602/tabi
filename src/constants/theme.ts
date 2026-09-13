@@ -1,65 +1,43 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
-
 import '@/global.css';
 
 import { Platform } from 'react-native';
 
+export const Palette = {
+  ink: '#172A29',
+  paper: '#F4F3ED',
+  white: '#FFFEFA',
+  coral: '#FF6B4A',
+  coralDark: '#D84B30',
+  sky: '#A8DEEF',
+  skySoft: '#E2F3F7',
+  sun: '#FFD875',
+  mist: '#DDE2DC',
+  muted: '#6D7773',
+  line: '#D8DAD3',
+} as const;
+
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#F6F4EF',
-    backgroundElement: '#ECE8DD',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#606861',
+    text: Palette.ink,
+    background: Palette.paper,
+    backgroundElement: Palette.white,
+    backgroundSelected: Palette.skySoft,
+    textSecondary: Palette.muted,
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    text: '#F8F7F2',
+    background: '#12201F',
+    backgroundElement: '#21312F',
+    backgroundSelected: '#314542',
+    textSecondary: '#B7C1BD',
   },
 } as const;
-
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
-  },
+  ios: { sans: 'system-ui', serif: 'ui-serif', rounded: 'ui-rounded', mono: 'ui-monospace' },
+  default: { sans: 'normal', serif: 'serif', rounded: 'normal', mono: 'monospace' },
+  web: { sans: 'var(--font-display)', serif: 'serif', rounded: 'var(--font-rounded)', mono: 'monospace' },
 });
 
-export const Spacing = {
-  half: 2,
-  one: 4,
-  two: 8,
-  three: 16,
-  four: 24,
-  five: 32,
-  six: 64,
-} as const;
-
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 800;
+export const Spacing = { half: 2, one: 4, two: 8, three: 16, four: 24, five: 32, six: 64 } as const;
+export const MaxContentWidth = 920;
