@@ -6,7 +6,8 @@ import { useTripHero } from '@/components/trip-hero';
 import { useTripHeaderHeight } from '@/components/trip-header-context';
 import { BookingSheet } from '@/components/booking-sheet';
 import { SymbolView } from 'expo-symbols';
-import { Fragment, type ComponentProps, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { Fragment, type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -175,6 +176,9 @@ export default function ItineraryScreen() {
   const [dayBarHeight, setDayBarHeight] = useState(60);
   const { height: windowHeight } = useWindowDimensions();
   const { canEdit, selectedTrip, items, bookings, createItem, updateItem, deleteItem, pendingCount } = useTravel();
+  const { itemId } = useLocalSearchParams<{ itemId?: string }>();
+  const requestedDay = items.find((item) => item.id === itemId)?.day;
+  const pendingScrollDay = useRef<string | null>(null);
   const [viewingBookingId, setViewingBookingId] = useState<string | null>(null);
   const viewingBooking = bookings.find((booking) => booking.id === viewingBookingId);
   const [adding, setAdding] = useState(false);
@@ -226,17 +230,17 @@ export default function ItineraryScreen() {
     if (frame) dateScrollRef.current?.scrollTo({ x: Math.max(0, frame.x - (dateViewport.current - frame.width) / 2), animated: true });
   }, [visibleActiveDay]);
 
-  const resumeScrollTracking = () => {
+  const resumeScrollTracking = useCallback(() => {
     programmaticScrollDay.current = null;
     if (scrollTrackingTimer.current) clearTimeout(scrollTrackingTimer.current);
     scrollTrackingTimer.current = null;
-  };
+  }, []);
 
   useEffect(() => () => {
     if (scrollTrackingTimer.current) clearTimeout(scrollTrackingTimer.current);
   }, []);
 
-  const scrollToDay = (date: string) => {
+  const scrollToDay = useCallback((date: string) => {
     const offset = dayOffsets.current[date];
     resumeScrollTracking();
     programmaticScrollDay.current = date;
@@ -247,7 +251,20 @@ export default function ItineraryScreen() {
     }
     scrollRef.current?.scrollTo({ y: Math.max(0, sheetOffset.current + timelineOffset.current + offset - dayBarHeight - 10), animated: true });
     scrollTrackingTimer.current = setTimeout(resumeScrollTracking, 1000);
-  };
+  }, [dayBarHeight, resumeScrollTracking]);
+
+  const scrollToRequestedDay = useCallback(() => {
+    const date = pendingScrollDay.current;
+    if (!date || dayOffsets.current[date] === undefined) return;
+    pendingScrollDay.current = null;
+    scrollToDay(date);
+  }, [scrollToDay]);
+
+  useEffect(() => {
+    pendingScrollDay.current = requestedDay ?? null;
+    const frame = requestAnimationFrame(scrollToRequestedDay);
+    return () => cancelAnimationFrame(frame);
+  }, [itemId, requestedDay, scrollToRequestedDay]);
 
   const trackVisibleDay = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     hero?.scrollY.setValue(Math.max(0, event.nativeEvent.contentOffset.y));
@@ -320,6 +337,7 @@ export default function ItineraryScreen() {
         testID="itinerary-scroll" style={{ marginTop: headerHeight + (desktop ? 98 : 0), marginLeft: desktop ? 200 : 0 }}
         stickyHeaderIndices={[1]}
         contentContainerStyle={styles.scrollContent}
+        onContentSizeChange={scrollToRequestedDay}
         onMomentumScrollEnd={resumeScrollTracking}
         onScroll={trackVisibleDay}
         onScrollBeginDrag={resumeScrollTracking}

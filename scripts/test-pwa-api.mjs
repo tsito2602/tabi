@@ -62,6 +62,52 @@ test('multiple place links and unavailable reservations round-trip without losin
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM place_details WHERE place_id = ?').get(id).n, 0);
   } finally { db.close(); }
 });
+test('place itinerary links survive status/title edits and old clients, but clear after plan deletion', async () => {
+  const { db, call, trip } = await fixture();
+  try {
+    const base = `/trips/${trip.id}/places`, id = randomUUID(), itemId = randomUUID();
+    const plan = { id: itemId, day: trip.startsOn, time: '', kind: '予定', title: place.title, note: place.note + '\n' + place.location };
+    const read = async () => (await (await call(base)).json()).places.find((entry) => entry.id === id);
+    assert.equal((await call(base, 'POST', { id, ...place })).status, 201);
+    assert.equal((await call(`/trips/${trip.id}/items`, 'POST', plan)).status, 201);
+    for (const status of ['want', 'planned', 'visited', 'skipped']) {
+      assert.equal((await call(`${base}/${id}`, 'PATCH', { ...place, title: '改名', status, itineraryItemId: itemId })).status, 200);
+      assert.equal((await read()).itineraryItemId, itemId);
+    }
+    assert.equal((await call(`${base}/${id}`, 'PATCH', place)).status, 200);
+    assert.equal((await read()).itineraryItemId, itemId);
+    const other = { ...trip, id: randomUUID() }, otherItem = randomUUID();
+    await call('/trips', 'POST', other);
+    await call(`/trips/${other.id}/items`, 'POST', { ...plan, id: otherItem });
+    assert.equal((await call(`${base}/${id}`, 'PATCH', { ...place, itineraryItemId: otherItem })).status, 400);
+    assert.equal((await read()).itineraryItemId, itemId);
+    assert.equal((await call(`/trips/${trip.id}/items/${itemId}`, 'DELETE')).status, 204);
+    assert.equal((await read()).itineraryItemId, null);
+    assert.equal((await call(`${base}/${id}`, 'PATCH', { ...place, itineraryItemId: itemId })).status, 200);
+    const replacement = randomUUID();
+    await call(`/trips/${trip.id}/items`, 'POST', { ...plan, id: replacement });
+    db.exec(await readFile('worker/schema.sql', 'utf8'));
+    assert.equal((await read()).itineraryItemId, null, 'migration does not relink a deleted plan');
+    await call(`${base}/${id}`, 'PATCH', { ...place, itineraryItemId: replacement });
+    assert.equal((await read()).itineraryItemId, replacement);
+  } finally { db.close(); }
+});
+test('legacy additions are recovered once only when both place and plan are unambiguous', async () => {
+  const { db, call, trip } = await fixture();
+  try {
+    const base = `/trips/${trip.id}/places`, id = randomUUID(), itemId = randomUUID();
+    await call(base, 'POST', { id, ...place, status: 'planned' });
+    await call(`/trips/${trip.id}/items`, 'POST', { id: itemId, day: trip.startsOn, time: '', kind: '予定', title: place.title, note: place.note + '\n' + place.location });
+    db.prepare('DELETE FROM place_itinerary_links WHERE place_id = ?').run(id);
+    const schema = await readFile('worker/schema.sql', 'utf8');
+    db.exec(schema); db.exec(schema);
+    assert.equal(db.prepare('SELECT item_id FROM place_itinerary_links WHERE place_id = ?').get(id).item_id, itemId);
+    await call(base, 'POST', { id: randomUUID(), ...place });
+    db.exec('DELETE FROM place_itinerary_links');
+    db.exec(schema);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM place_itinerary_links WHERE item_id IS NOT NULL').get().n, 0);
+  } finally { db.close(); }
+});
 test('places CRUD is shared, validated, scoped and replay-safe', async () => {
   const { db, call, trip } = await fixture();
   try {

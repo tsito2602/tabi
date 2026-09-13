@@ -103,3 +103,26 @@ test('reservation details retain file viewing but expose mutations only in editi
     }
   }
 });
+
+
+test('place itinerary actions follow actual additions across every status and preserve viewer permissions', () => {
+  const placeData = load('src/data/places.ts', {});
+  for (const canEdit of [false, true]) for (const status of ['want', 'planned', 'visited', 'skipped']) for (const added of [false, true]) {
+    const Screen = load('src/screens/places-screen.tsx', {
+      '@/theme/theme-provider': theme,
+      'react-native': { ...native, ScrollView: element('div'), TextInput: element('input'), Linking: {} },
+      'expo-router': { useRouter: () => ({ push: noop }) },
+      'expo-symbols': { SymbolView: () => null },
+      '@/components/place-status-icon': { PlaceStatusIcon: () => null },
+      '@/components/form-sheet': {}, '@/components/floating-add-button': { FloatingAddButton: () => null },
+      '@/constants/design': {}, '@/data/places': placeData,
+      '@/utils/confirm-deletion': {}, '@/components/date-range-picker': {},
+      '@/components/toast': { useToast: () => noop },
+      '@/components/trip-header-context': { useTripHeaderHeight: () => 0 },
+      '@/data/travel-provider': { useTravel: () => ({ canEdit, places: [{ id: 'place', title: '美術館', note: '', location: '', status, reservationStatus: 'not_needed', itineraryItemId: 'plan' }], items: added ? [{ id: 'plan', day: '2026-11-23' }] : [] }) },
+    }).default;
+    const html = renderToStaticMarkup(React.createElement(Screen));
+    assert.equal(html.includes('しおりを見る'), added, `${status}: linked plan visible even to viewers`);
+    assert.equal(html.includes('しおりへ'), !added && canEdit, `${status}: add when unlinked or deleted`);
+  }
+});

@@ -167,6 +167,23 @@ CREATE TABLE IF NOT EXISTS places (
 );
 CREATE INDEX IF NOT EXISTS places_trip ON places(trip_id, status, updated_at);
 
+CREATE TABLE IF NOT EXISTS place_itinerary_links (
+  place_id TEXT PRIMARY KEY REFERENCES places(id) ON DELETE CASCADE,
+  item_id TEXT REFERENCES itinerary_items(id) ON DELETE SET NULL
+);
+-- Recover only unambiguous legacy additions. Keep a row even after deletion,
+-- so subsequent schema runs cannot associate a place with another plan.
+INSERT OR IGNORE INTO place_itinerary_links (place_id, item_id)
+SELECT p.id, (
+  SELECT i.id FROM itinerary_items i
+  WHERE i.trip_id = p.trip_id AND i.kind = '予定' AND i.time = ''
+    AND i.title = p.title
+    AND i.note = p.note || CASE WHEN p.note <> '' AND p.location <> '' THEN char(10) ELSE '' END || p.location
+    AND (SELECT COUNT(*) FROM places other WHERE other.trip_id = p.trip_id AND other.title = p.title
+      AND other.note = p.note AND other.location = p.location) = 1
+  GROUP BY i.trip_id HAVING COUNT(*) = 1
+) FROM places p;
+
 -- Extend place metadata without rebuilding existing rows or their status constraint.
 CREATE TABLE IF NOT EXISTS place_details (
   place_id TEXT PRIMARY KEY REFERENCES places(id) ON DELETE CASCADE,

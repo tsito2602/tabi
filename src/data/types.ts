@@ -91,6 +91,7 @@ export type Place = {
   reservationStatus: ReservationStatus;
   location: string;
   referenceLinks?: PlaceReferenceLink[];
+  itineraryItemId?: string | null;
   status: PlaceStatus;
   updatedAt?: number;
 };
