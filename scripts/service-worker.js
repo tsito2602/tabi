@@ -48,7 +48,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
-  if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/v1/') || url.pathname === '/sw.js') return;
+  if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/v1/') || url.pathname.startsWith('/__icon-check/') || url.pathname === '/sw.js') return;
   if (request.mode === 'navigate') {
     // Only the public app shell is cached. Identity/data live in account-scoped storage.
     event.respondWith((async () => {

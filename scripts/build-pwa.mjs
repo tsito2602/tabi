@@ -1,8 +1,11 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import { buildIconCheck } from './build-icon-check.mjs';
 const root = path.resolve('dist');
 const template = await readFile('scripts/service-worker.js', 'utf8');
+// Clean a previous diagnostic export even when rebuilding for production.
+await buildIconCheck(root, false);
 async function walk(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   return (await Promise.all(entries.map((entry) => entry.isDirectory() ? walk(path.join(dir, entry.name)) : path.join(dir, entry.name)))).flat();
@@ -27,3 +30,6 @@ const version = digest.digest('hex').slice(0, 16);
 const urls = files.map((file) => file === path.join(root, 'index.html') ? '/' : '/' + path.relative(root, file).split(path.sep).join('/'));
 await writeFile(path.join(root, 'sw.js'), template.replace('__VERSION__', version).replace('__PRECACHE__', JSON.stringify(urls)));
 console.log(`PWA ${version}: ${urls.length} files prepared for offline startup`);
+// Generate after icon rewriting and precaching: each comparison keeps its own
+// icon/manifest and never receives the main app's cached shell.
+await buildIconCheck(root, process.env.EXPO_PUBLIC_ENABLE_DEMO === 'true');

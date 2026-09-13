@@ -12,6 +12,14 @@ Appleが案内するWeb Clipの指定は`apple-touch-icon`のPNG。ネイティ�
 
 実機ではSafariで更新後のサイトをホーム画面へ追加し、ホーム画面アイコンの外観を自動にしてライト／ダークを確認する。既存アイコンはOS側に保持される場合があるため、反映されない場合は再追加して確認する。
 
+2026-09-13の追加報告では、訂正後のスクリーンショットでも`tabi-staging`はライト／ダークの双方で白いまま、konogoroは切り替わっていた。PNG形式を揃えた変更は解決確認に至っていない。先の別画像の背景色から推測した「旧アイコンが原因」という説明も、今回の画像の原因として扱わない。
+
+`EXPO_PUBLIC_ENABLE_DEMO=true`のビルドだけに`/__icon-check/`を生成する。一時的な実機比較用で、通常のアプリのロゴやインストールIDは変更しない。Aはkonogoroの配信PNGそのもの、Bはtabiの現在の配信PNGそのもの、Cはtabiのベクター原稿から背景なしで書き出したPNG。同一ホスト・同一HTML構成・同一manifest構成で、個別のIDとscopeを持たせる。A/Bの結果が異なる場合だけCも確認する。透明化で解決すると断定するものではない。
+
+比較ページはオフライン用キャッシュとHTMLアイコン置換の対象外。本番ビルドでは、前のビルドに残った比較ファイルも削除する。既存の古いService Workerが全ナビゲーションを通常のアプリへ返す場合を避けるため、初回の比較はデプロイごとの専用URLで開く。比較用アイコンは旅行データに接続しない。検証後は削除できる。
+
+判定: Aのみ切り替わるなら、同じ指定条件でも元画像により結果が異なる。A/Bとも切り替わるなら、通常のインストール条件または登録済み画像との差を追う。両方切り替わらない場合は、既存konogoroと今回の登録条件の違いが残り、モチーフが原因とは判断しない。Cが切り替わる場合もライト時の見え方を含めて確認してから採用する。
+
 参照: [Apple: Configuring Web Applications](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/ConfiguringWebApplications/ConfiguringWebApplications.html)
 
 Webアプリのルートは`100dvh`で表示領域に追従させる。Safariのツールバーが開閉してもアプリ下部にルート背景だけの帯を残さないための設定。ホームインジケーター周辺の操作ボタンの余白は各コンポーネントで維持する。iOS Safari／ホーム画面PWAの双方でスクロール後の下端を確認する。

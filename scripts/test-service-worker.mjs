@@ -56,6 +56,8 @@ test('installed shell and bundles support deep-link offline reload without cachi
   assert.equal(f.fetch('/v1/trips'), undefined);
   assert.equal(f.fetch('/v1/trips/a/places', { method: 'POST' }), undefined);
   assert.equal(f.fetch('/sw.js'), undefined);
+  assert.equal(f.fetch('/__icon-check/', { mode: 'navigate' }), undefined);
+  assert.equal(f.fetch('/__icon-check/test/a/icon.png'), undefined);
   assert.equal(f.network.length, 0);
 });
 
