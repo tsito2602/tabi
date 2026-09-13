@@ -399,7 +399,7 @@ export default function ItineraryScreen() {
               </View>
               {dateItems.length ? <View>
                   {dateItems.map((entry, entryIndex) => {
-                    const details = entry.item ? [itemCategory(entry.item).label, ...(itemDetails(entry.item).location ? [itemDetails(entry.item).location] : [])] : [...bookingDetails(entry), bookingDurationLabel(entry.booking!)].filter(Boolean);
+                    const details = entry.item ? [itemCategory(entry.item).label, ...(itemDetails(entry.item).location ? [itemDetails(entry.item).location] : [])] : [...bookingDetails(entry), entry.booking?.kind === 'flight' ? '' : bookingDurationLabel(entry.booking!)].filter(Boolean);
                     const isTransport = entry.item && itemDetails(entry.item).category === 'transport';
                     const previous = dateItems[entryIndex - 1], next = dateItems[entryIndex + 1];
                     const previousTransport = previous?.item && itemDetails(previous.item).category === 'transport';
