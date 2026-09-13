@@ -67,6 +67,8 @@ function TripBookingsScreen() {
               const index = bookings.indexOf(booking);
               const kind = BOOKING_KINDS.find((entry) => entry.value === booking.kind) ?? BOOKING_KINDS[BOOKING_KINDS.length - 1];
               const hasRoute = Boolean(booking.origin || booking.destination || booking.originCode || booking.destinationCode);
+              const location = booking.location ?? booking.detail;
+              const detail = booking.kind === 'hotel' ? (/^https?:\/\//i.test(location.trim()) ? '' : location) : booking.detail;
               const documentCount = documentsByBooking[booking.id]?.length ?? 0;
               const connection = connections.get(booking.id);
               return (
@@ -78,7 +80,7 @@ function TripBookingsScreen() {
                       <View style={styles.ticketTopMeta}>{documentCount ? <Text style={styles.documentCount}>書類 {documentCount}</Text> : null}<Text style={styles.serial}>TABI/{String(index + 1).padStart(2, '0')}</Text></View>
                     </View>
                     <Text numberOfLines={2} style={styles.cardTitle}>{booking.title}</Text>
-                    {hasRoute ? <BookingRoute booking={booking} compact /> : booking.detail ? <Text style={styles.detail}>{booking.detail}</Text> : null}
+                    {hasRoute ? <BookingRoute booking={booking} compact /> : detail ? <Text numberOfLines={2} style={styles.detail}>{detail}</Text> : null}
                     {hasRoute && booking.detail ? <Text numberOfLines={1} style={styles.detail}>{booking.detail}</Text> : null}
                     <Text style={styles.meta}>{formatDate(booking.day)}　{booking.time}{booking.endDay !== booking.day ? ` → ${formatDate(booking.endDay)}` : booking.endTime && booking.endTime !== booking.time ? ` – ${booking.endTime}` : ''}</Text>
                   </View>
