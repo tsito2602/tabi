@@ -10,7 +10,7 @@ export default function Root({ children }: PropsWithChildren) {
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="tabi" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon-transparent.png" />
     <link rel="icon" href="/icons/favicon.ico" sizes="any" />
     <link rel="icon" href="/icons/favicon-32x32.png" type="image/png" sizes="32x32" />
     <link rel="icon" href="/icons/favicon-16x16.png" type="image/png" sizes="16x16" />

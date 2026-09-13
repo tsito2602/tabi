@@ -20,9 +20,15 @@ const native = { Platform: { OS: 'web' }, StyleSheet: { create: (x) => x }, View
 const palette = new Proxy({}, { get: () => '#000000' });
 const theme = { usePalette: () => palette, useThemedStyles: (create) => create(palette) };
 
-test('web icons retain konogoro-compatible RGBA export independently of native store assets', async () => {
+test('iPhone uses device-verified transparent C artwork; maskable/store assets remain opaque', async () => {
+  const reference = await sharp(readFileSync('assets/brand/symbol.svg'), { density: 384 }).resize(180, 180).png({ compressionLevel: 9, palette: false }).toBuffer();
+  for (const path of ['/icons/apple-touch-icon-transparent.png', '/icons/apple-touch-icon.png', '/apple-touch-icon.png', '/apple-touch-icon-v2.png']) {
+    const file = `public${path}`;
+    assert.deepEqual(readFileSync(file), reference, path);
+    assert.equal((await sharp(file).stats()).isOpaque, false, path);
+  }
   const manifest = JSON.parse(readFileSync('public/manifest.webmanifest', 'utf8'));
-  for (const path of ['/icons/apple-touch-icon.png', ...manifest.icons.map((icon) => icon.src)]) {
+  for (const path of manifest.icons.map((icon) => icon.src)) {
     const file = `public${path}`;
     const metadata = await sharp(file).metadata();
     assert.equal(metadata.channels, 4, path);

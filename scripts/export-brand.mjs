@@ -42,8 +42,10 @@ for (const size of [192, 512]) {
 }
 await webPng('public/icons/icon-maskable-512.png', svg('#FFFFFF', .72), 512);
 await webPng('public/icon-maskable.png', svg('#FFFFFF', .72), 512);
-for (const file of ['public/icons/apple-touch-icon.png', 'public/apple-touch-icon.png', 'public/apple-touch-icon-v2.png']) {
-  await webPng(file, webLight, 180);
+// Device comparison C switches Home Screen appearance. Use the exact same
+// transparent source/export; alpha presence alone with white pixels did not work.
+for (const file of ['public/icons/apple-touch-icon-transparent.png', 'public/icons/apple-touch-icon.png', 'public/apple-touch-icon.png', 'public/apple-touch-icon-v2.png']) {
+  await webPng(file, source, 180);
 }
 await webPng('public/apple-touch-icon-dark.png', webDark, 180);
 const adaptiveIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><style>@media(prefers-color-scheme:dark){.background{fill:#000000}}</style><rect class="background" width="1024" height="1024" fill="#FFFFFF"/>${body}</svg>\n`;

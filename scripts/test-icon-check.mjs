@@ -21,10 +21,23 @@ try {
     assert.ok(!html.includes('serviceWorker'));
     scopes.add(manifest.id);
   }
-  assert.equal(scopes.size, 3);
+  assert.equal(scopes.size, 4);
   assert.deepEqual(await readFile(path.join(root, base, 'a/icon.png')), await readFile('scripts/fixtures/konogoro-touch.png'));
-  assert.deepEqual(await readFile(path.join(root, base, 'b/icon.png')), await readFile('public/icons/apple-touch-icon.png'));
+  assert.deepEqual(await readFile(path.join(root, base, 'b/icon.png')), await readFile('scripts/fixtures/tabi-touch-white.png'));
+  assert.deepEqual(await readFile(path.join(root, base, 'c/icon.png')), await readFile('public/icons/apple-touch-icon-transparent.png'));
   assert.equal((await sharp(path.join(root, base, 'c/icon.png')).stats()).isOpaque, false);
+  assert.equal((await sharp(path.join(root, base, 'd/icon.png')).stats()).isOpaque, true);
+  const b = await sharp(path.join(root, base, 'b/icon.png')).raw().toBuffer();
+  const d = await sharp(path.join(root, base, 'd/icon.png')).raw().toBuffer();
+  let changed = 0;
+  for (let index = 0; index < b.length; index += 4) {
+    if (!b.subarray(index, index + 4).equals(d.subarray(index, index + 4))) {
+      // All changes stay inside the detached ticket stub's bounding box.
+      assert.ok(index / 4 % 180 >= 103 && Math.floor(index / 4 / 180) < 80);
+      changed++;
+    }
+  }
+  assert.ok(changed > 0);
   await buildIconCheck(root, false);
   assert.deepEqual(await readdir(root), []);
   console.log('Icon comparison: isolated identities, original controls, transparent candidate, production cleanup passed');

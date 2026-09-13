@@ -2,7 +2,7 @@
 
 サンプル旅行はローカル開発（`__DEV__`）、ネイティブのpreview、または`EXPO_PUBLIC_ENABLE_DEMO=true`でビルドしたstagingだけで有効。本番のデプロイでは明示的に`false`を指定する。本番では以前保存された`tabi.demo-active`を削除し、サンプルデータを自動で開かない。旅行やログイン済みアカウントの保存データは削除しない。
 
-iOSのホーム画面用アイコンは`/icons/apple-touch-icon.png`（180px、文字なし、不透明な純白背景を持つRGBA PNG）。`npm run icons:export`で、konogoroの書き出しと同じ`density: 384`、`compressionLevel: 9`、`palette: false`を使って再生成する。ネイティブストア用の`removeAlpha()`処理をWeb用画像には適用しない。
+iOSのホーム画面用アイコンは`/icons/apple-touch-icon-transparent.png`（180px、文字なし、透明背景のRGBA PNG）。ユーザー実機でライト／ダークの背景切り替えが確認できた比較Cと同一バイトの画像を使う。`npm run icons:export`で、konogoroの書き出しと同じ`density: 384`、`compressionLevel: 9`、`palette: false`を使って再生成する。ネイティブストア用の`removeAlpha()`処理をWeb用画像には適用しない。
 
 初回の白背景への変更だけでは、ユーザーのiPhoneで自動ダーク化しなかった。配信済みkonogoro画像はRGBA・384dpi、tabiの初回修正版はRGB・72dpiだった。またmanifest用192/512pxとmaskableは青みのある背景が残っていた。今回は全Web用PNGの生成方式と白背景を揃え、SVGはライト時に白、ダーク時に黒に切り替える。ICO・16/32px PNG・SVGの候補もkonogoroと同じ構成で指定する。これらは確認できた実装差分であり、どの差分がiOSの自動処理に影響するかは実機でしか断定できない。
 
@@ -23,3 +23,11 @@ Appleが案内するWeb Clipの指定は`apple-touch-icon`のPNG。ネイティ�
 参照: [Apple: Configuring Web Applications](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/ConfiguringWebApplications/ConfiguringWebApplications.html)
 
 Webアプリのルートは`100dvh`で表示領域に追従させる。Safariのツールバーが開閉してもアプリ下部にルート背景だけの帯を残さないための設定。ホームインジケーター周辺の操作ボタンの余白は各コンポーネントで維持する。iOS Safari／ホーム画面PWAの双方でスクロール後の下端を確認する。
+
+2026-09-13の実機比較結果: Aは暗い背景とロゴの縁の立体感、Bは白背景のまま、Cは背景が切り替わるがロゴの縁はフラット。通常のiPhone用参照と旧touchアイコンの別名をCと同じ透明画像へ変更した。manifest用の通常アイコン・maskableとネイティブ用の画像は用途が異なるため維持する。アプリ本体の参照変更後の実機確認は別途必要。
+
+konogoroの配信PNGそのものには縁のハイライトがないため、比較Aの立体感は端末側の加工と判断できる。ただし、iOSがどの条件で加工するかは未特定。AppleのApp iconsのレイヤー／Icon Composerの説明はネイティブ向けで、Web ClipのPNGに同じ指定を追加できる根拠にはしない。
+
+次の比較Dは、Bの白背景・形・位置を保ち、薄い半券だけを既存アプリ内accent色`#6F8FA2`へ変更する。背景とのコントラストが加工に影響しているかを調べる候補で、OSの画像認識が原因だと断定するものではない。通常アイコンの色は変更しない。Dだけホーム画面に追加し、背景の切り替えと縁の立体感をライト／ダーク双方で確認する。
+
+参照: [Apple: App icons](https://developer.apple.com/design/human-interface-guidelines/app-icons)

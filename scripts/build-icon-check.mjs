@@ -9,10 +9,14 @@ export async function buildIconCheck(root, enabled) {
   await rm(output, { recursive: true, force: true });
   if (!enabled) return;
   const source = await readFile('assets/brand/symbol.svg');
+  // D changes only the pale stub's colour from the white-background control B.
+  // Use tabi's existing accent, not a baked-in imitation of system highlights.
+  const contrastSource = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><title>tabi</title><rect width="1024" height="1024" fill="#FFFFFF"/><g transform="translate(0 0) scale(1)">${source.toString().match(/<g[\s\S]*<\/g>/)[0].replace('#D7E2E8', '#6F8FA2')}</g></svg>`;
   const variants = [
     { key: 'a', name: '検証A', label: 'konogoro', image: await readFile('scripts/fixtures/konogoro-touch.png') },
-    { key: 'b', name: '検証B', label: 'tabi・白背景', image: await readFile('public/icons/apple-touch-icon.png') },
+    { key: 'b', name: '検証B', label: 'tabi・白背景', image: await readFile('scripts/fixtures/tabi-touch-white.png') },
     { key: 'c', name: '検証C', label: 'tabi・透明背景', image: await sharp(source, { density: 384 }).resize(180, 180).png({ compressionLevel: 9, palette: false }).toBuffer() },
+    { key: 'd', name: '検証D', label: 'tabi・半券の色を調整', image: await sharp(Buffer.from(contrastSource), { density: 384 }).resize(180, 180).png({ compressionLevel: 9, palette: false }).toBuffer() },
   ];
   const revision = createHash('sha256').update(Buffer.concat(variants.map(v => v.image))).digest('hex').slice(0, 10);
   const base = `/__icon-check/${revision}`;
@@ -20,7 +24,7 @@ export async function buildIconCheck(root, enabled) {
   const document = (title, head, content) => `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${title}</title>${head}${style}</head><body>${content}</body></html>`;
   await mkdir(output, { recursive: true });
   const cards = variants.map(v => `<article><img src="${base}/${v.key}/icon.png" alt=""><h2>${v.name}：${v.label}</h2><p><a href="${base}/${v.key}/">追加用ページを開く</a></p></article>`).join('');
-  await writeFile(path.join(output, 'index.html'), document('アイコンの比較', '', `<h1>ホーム画面アイコンの比較</h1><p>SafariでA・Bの各ページを開き、共有メニューから「ホーム画面に追加」してください。続けてホーム画面のカスタマイズでライト／ダークを切り替えます。</p>${cards}<p>A・Bの結果が異なる場合は、Cも同じ方法で確認してください。</p><p>確認後、検証用アイコンは削除できます。普段のtabiとは別のページです。</p><small>比較番号 ${revision}</small>`));
+  await writeFile(path.join(output, 'index.html'), document('アイコンの比較', '', `<h1>ホーム画面アイコンの比較</h1><p>Cの背景切り替えは確認できました。次はDだけをSafariの共有メニューから「ホーム画面に追加」し、ライト／ダークで背景とロゴの縁を確認してください。</p>${cards}<p>DはBの半券の色だけを濃くしています。立体感が付くかは未確認です。A・B・Cの追加し直しは不要です。</p><p>確認後、検証用アイコンは削除できます。普段のtabiとは別のページです。</p><small>比較番号 ${revision}</small>`));
   for (const variant of variants) {
     const scope = `${base}/${variant.key}/`;
     const dir = path.join(root, scope.slice(1));
