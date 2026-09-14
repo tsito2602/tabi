@@ -1,3 +1,4 @@
+import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { MotionTabs } from '@/components/motion-tabs';
 import { MotionPresence } from '@/components/motion-presence';
@@ -173,6 +174,7 @@ function timeZoneLabel(entry: TimelineEntry) {
 
 export default function ItineraryScreen() {
   const reduced = useReducedMotion();
+  const [detailOrigin, setDetailOrigin] = useState<DetailOrigin>();
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
 
@@ -293,6 +295,7 @@ export default function ItineraryScreen() {
   };
 
   const openAdd = () => {
+    setDetailOrigin(undefined);
     if (!selectedTrip) return;
     setViewingItemId(null);
     setEditingId(null);
@@ -415,13 +418,13 @@ export default function ItineraryScreen() {
                     const isConnectedDeparture = entry.bookingEndpoint === 'start' && Boolean(entry.booking && connectedDepartures.has(entry.booking.id));
                     return (
                     <Fragment key={entry.key}>
-                    {isTransport ? <TransportRow item={entry.item!} hasPrevious={Boolean(previous)} hasNext={Boolean(next)} onPress={() => setViewingItemId(entry.item!.id)} /> : <Pressable
+                    {isTransport ? <TransportRow item={entry.item!} hasPrevious={Boolean(previous)} hasNext={Boolean(next)} onPress={(event) => { setDetailOrigin(captureDetailOrigin(event)); setViewingItemId(entry.item!.id); }} /> : <Pressable
                       accessibilityHint={entry.booking ? '予約の詳細を開きます' : '予定の詳細を開きます'}
                       accessibilityRole="button"
-                      onPress={() => entry.booking ? setViewingBookingId(entry.booking.id) : setViewingItemId(entry.item!.id)}
+                      onPress={(event) => { setDetailOrigin(captureDetailOrigin(event)); if (entry.booking) setViewingBookingId(entry.booking.id); else setViewingItemId(entry.item!.id); }}
                       style={({ pressed }) => [styles.itemRow, (isLinkedStart || isLinkedEnd) && styles.linkedBookingRow, pressed && styles.itemPressed]}>
                       <View style={styles.timeColumn}>
-                        <Text style={styles.time}>{entry.time || '—'}</Text>
+                        <Text testID={entry.bookingEndpoint === 'end' ? 'detail-source-time-end' : 'detail-source-time'} style={styles.time}>{entry.time || '—'}</Text>
                         <Text style={styles.timeZone}>{entry.item ? itemEndLabel(entry.item) ? `〜 ${itemEndLabel(entry.item)}` : '' : timeZoneLabel(entry)}</Text>
                       </View>
                       <View style={styles.railColumn}>
@@ -442,7 +445,7 @@ export default function ItineraryScreen() {
                         </View>
                       </View>
                       <View style={[styles.itemCopy, entryIndex < dateItems.length - 1 && !nextTransport && styles.itemDivider]}>
-                        <Text style={styles.itemTitle}>{entryTitle(entry)}</Text>
+                        <Text testID="detail-source-title" style={styles.itemTitle}>{entryTitle(entry)}</Text>
                         {details.map((detail, index) => <Text key={`${entry.key}-detail-${index}`} style={[styles.note, index === 0 && styles.bookingTag]}>{detail}</Text>)}
                       </View>
                       <Text style={styles.chevron}>›</Text>
@@ -468,17 +471,17 @@ export default function ItineraryScreen() {
       {selectedTrip && canEdit ? <FloatingAddButton label="予定を追加する" onPress={() => openAdd()} /> : null}
       <MotionPresence>{connectionBookingId ? <FlightConnectionSheet bookingId={connectionBookingId} onClose={() => setConnectionBookingId(null)} /> : null}</MotionPresence>
 
-      <MotionPresence>{viewingBooking ? <BookingSheet key={`${selectedTrip?.id}:${viewingBooking.id}`} booking={viewingBooking} onClose={() => setViewingBookingId(null)} /> : null}</MotionPresence>
+      <MotionPresence>{viewingBooking ? <BookingSheet detailOrigin={detailOrigin} key={`${selectedTrip?.id}:${viewingBooking.id}`} booking={viewingBooking} onClose={() => setViewingBookingId(null)} /> : null}</MotionPresence>
 
-      <MotionPresence>{isViewingItem && viewingPlace ? <PlaceSheet key={viewingPlace.id} place={viewingPlace} onClose={() => setViewingItemId(null)} onEditSchedule={() => openEdit(viewingItem!)} /> : null}</MotionPresence>
+      <MotionPresence>{isViewingItem && viewingPlace ? <PlaceSheet detailOrigin={detailOrigin} key={viewingPlace.id} place={viewingPlace} onClose={() => setViewingItemId(null)} onEditSchedule={() => openEdit(viewingItem!)} /> : null}</MotionPresence>
 
-      <FormSheet visible={adding || (Boolean(viewingItem) && !viewingPlace)} presentation={isViewingItem ? 'detail' : 'form'} title={isViewingItem ? '予定の詳細' : editingPlace ? '予定を編集' : editingId ? '予定を編集' : '予定を追加'} onClose={() => { if (isViewingItem) setViewingItemId(null); else closeEditor(); }} onSave={canEdit ? isViewingItem ? () => openEdit(viewingItem!) : save : undefined} saveLabel={isViewingItem ? '編集' : '保存'} canSave={isViewingItem || moving || Boolean(title.trim())} dirty={!isViewingItem && JSON.stringify([day, time, title, note, planDetails]) !== initialDraft} error={isViewingItem ? undefined : formError}>
+      <FormSheet detailOrigin={detailOrigin} visible={adding || (Boolean(viewingItem) && !viewingPlace)} presentation={isViewingItem ? 'detail' : 'form'} title={isViewingItem ? '予定の詳細' : editingPlace ? '予定を編集' : editingId ? '予定を編集' : '予定を追加'} onClose={() => { if (isViewingItem) setViewingItemId(null); else closeEditor(); }} onSave={canEdit ? isViewingItem ? () => openEdit(viewingItem!) : save : undefined} saveLabel={isViewingItem ? '編集' : '保存'} canSave={isViewingItem || moving || Boolean(title.trim())} dirty={!isViewingItem && JSON.stringify([day, time, title, note, planDetails]) !== initialDraft} error={isViewingItem ? undefined : formError}>
         {isViewingItem && viewingItem ? <View testID="itinerary-item-details" style={styles.planDetails}>
           <Text style={styles.bookingTag}>{itemCategory(viewingItem).label}</Text>
-          <Text selectable style={styles.planTitle}>{viewingItem.title}</Text>
+          <Text testID="detail-target-title" selectable style={styles.planTitle}>{viewingItem.title}</Text>
           <View style={styles.planDate}>
             <SymbolView name={{ ios: 'calendar', android: 'calendar_today', web: 'calendar_today' }} size={20} tintColor={palette.ocean} />
-            <Text style={styles.planDateText}>{viewingItem.day.replaceAll('-', '/')}　{viewingItem.time || '時刻未定'}{itemEndLabel(viewingItem) ? ` 〜 ${itemEndLabel(viewingItem)}` : ''}</Text>
+            <Text style={styles.planDateText}>{viewingItem.day.replaceAll('-', '/')}　<Text testID="detail-target-time">{viewingItem.time || '時刻未定'}</Text>{itemEndLabel(viewingItem) ? ` 〜 ${itemEndLabel(viewingItem)}` : ''}</Text>
           </View>
           {itemDetails(viewingItem).category === 'transport' ? <View style={styles.planNote}>
             <Text style={styles.planDateText}>{transportLabel(itemDetails(viewingItem))}　{durationLabel(durationMinutes(viewingItem.day, viewingItem.time, itemDetails(viewingItem)))}</Text>
@@ -505,21 +508,21 @@ export default function ItineraryScreen() {
   );
 }
 
-function TransportRow({ item, hasPrevious, hasNext, onPress }: { item: ItineraryItem; hasPrevious: boolean; hasNext: boolean; onPress: () => void }) {
+function TransportRow({ item, hasPrevious, hasNext, onPress }: { item: ItineraryItem; hasPrevious: boolean; hasNext: boolean; onPress: NonNullable<ComponentProps<typeof Pressable>['onPress']> }) {
   const styles = useThemedStyles(createStyles);
   const palette = usePalette();
   const details = itemDetails(item), transport = details.transport;
   const mode = transportModes.find((option) => option.value === transport?.mode) ?? transportModes[7];
   const route = [transport?.origin, transport?.destination].filter(Boolean).join(' → ');
   return <Pressable accessibilityRole="button" accessibilityHint="移動の詳細を開きます" onPress={onPress} style={({ pressed }) => [styles.transportRow, pressed && styles.itemPressed]}>
-    <View style={styles.transportTime}><Text style={styles.transportTimeText}>{item.time || '—'}</Text>{itemEndLabel(item) ? <Text style={styles.timeZone}>〜 {itemEndLabel(item)}</Text> : null}</View>
+    <View style={styles.transportTime}><Text testID="detail-source-time" style={styles.transportTimeText}>{item.time || '—'}</Text>{itemEndLabel(item) ? <Text style={styles.timeZone}>〜 {itemEndLabel(item)}</Text> : null}</View>
     <View style={styles.connectionRailColumn}>
       <View style={[styles.connectionRailFull, !hasPrevious && { top: '50%' }, !hasNext && { bottom: '50%' }]} />
       <View style={styles.transportIcon}><SymbolView name={{ ios: mode.ios, android: mode.icon, web: mode.icon } as SymbolName} size={18} tintColor={palette.ocean} /></View>
     </View>
     <View style={styles.connectionCopy}>
       <View style={styles.connectionHeading}><Text style={styles.transportMode}>{transportLabel(details)}</Text><Text style={styles.connectionDuration}>{durationLabel(durationMinutes(item.day, item.time, details))}</Text></View>
-      {item.title !== route.slice(0, 160) && item.title !== `${transportLabel(details)}で移動` ? <Text style={styles.connectionNext}>{item.title}</Text> : null}
+      {item.title !== route.slice(0, 160) && item.title !== `${transportLabel(details)}で移動` ? <Text testID="detail-source-title" style={styles.connectionNext}>{item.title}</Text> : null}
     </View><Text style={styles.chevron}>›</Text>
   </Pressable>;
 }

@@ -1,3 +1,6 @@
+import type { DetailOrigin } from '@/utils/detail-origin';
+import '@/detail-motion.css';
+import { createDetailMotion } from '@/utils/detail-motion.web';
 import { useCallback, useContext, useLayoutEffect, useRef, useState } from 'react';
 import { Modal, ModalProps } from 'react-native';
 import { MotionExitContext, MotionPresenceContext } from './motion-presence.web';
@@ -8,7 +11,7 @@ import { waitForMotion } from '@/utils/web-motion';
 const surfaceSelector = '[data-testid="form-sheet"], [data-testid="picker-sheet"], [data-testid="delete-trip-dialog"], [data-testid="trip-menu"], [data-testid="discard-dialog"]';
 const viewportSelector = '[data-testid="form-modal-viewport"], [data-testid="detail-modal-viewport"], [data-testid="modal-viewport"]';
 
-export function MotionModal({ children, visible = true, motion = 'modal', onRequestClose, ...props }: ModalProps & { motion?: 'modal' | 'dropdown' }) {
+export function MotionModal({ children, visible = true, motion = 'modal', onRequestClose, detail = false, detailOrigin, onDetailDismiss, ...props }: ModalProps & { motion?: 'modal' | 'dropdown'; detail?: boolean; detailOrigin?: DetailOrigin; onDetailDismiss?: () => void }) {
   const present = useContext(MotionPresenceContext);
   const exits = useContext(MotionExitContext);
   const open = visible && present;
@@ -22,6 +25,10 @@ export function MotionModal({ children, visible = true, motion = 'modal', onRequ
   // Modal creates a portal asynchronously. A stateful ref observes its real DOM
   // arrival, rather than starting an exit clock before the surface exists.
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  const detailMotion = useRef<ReturnType<typeof createDetailMotion> | null>(null);
+  const dismiss = useRef(onDetailDismiss);
+  useLayoutEffect(() => { dismiss.current = onDetailDismiss; }, [onDetailDismiss]);
+  useLayoutEffect(() => () => { detailMotion.current?.dispose(); detailMotion.current = null; }, [root]);
   const release = useRef<(() => void) | undefined>(undefined);
   const releaseExit = useCallback(() => {
     const complete = release.current;
@@ -56,13 +63,18 @@ export function MotionModal({ children, visible = true, motion = 'modal', onRequ
     surface.classList.toggle('is-closing', !open);
     root.classList.toggle('is-open', open);
     surface.inert = !open;
+    if (detail) {
+      detailMotion.current ??= createDetailMotion(surface, viewport, detailOrigin, () => dismiss.current?.());
+      return detailMotion.current.setOpen(open, reduced, finish);
+    }
+    detailMotion.current?.suspend();
     if (open) return;
     if (reduced) {
       finish();
       return;
     }
     return waitForMotion([surface, viewport], finish, motionMs(`--${motion}-close-dur`, 150));
-  }, [root, open, motion, reduced, releaseExit]);
+  }, [root, open, motion, reduced, releaseExit, detail, detailOrigin]);
   return <Modal {...props} visible={open || mounted} animationType="none" onRequestClose={open ? onRequestClose : undefined}>
     <div ref={setRoot} className="motion-overlay" inert={!open} aria-hidden={!open} style={{ display: 'flex', flex: 1, minHeight: 0 }}>
       {open ? children : snapshot.children}

@@ -1,3 +1,4 @@
+import type { DetailOrigin } from '@/utils/detail-origin';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { MotionModal } from './motion-modal';
 import { useThemedStyles } from '@/theme/theme-provider';
@@ -12,6 +13,7 @@ import { type Palette } from '@/constants/design';
 
 type Props = PropsWithChildren<{
   visible: boolean;
+  detailOrigin?: DetailOrigin;
   presentation?: 'form' | 'detail';
   title: string;
   onClose: () => void;
@@ -22,7 +24,7 @@ type Props = PropsWithChildren<{
   error?: string;
 }>;
 
-export function FormSheet({ presentation = 'form', visible, title, onClose, onSave, saveLabel = '保存', canSave = true, dirty = false, error, children }: Props) {
+export function FormSheet({ detailOrigin, presentation = 'form', visible, title, onClose, onSave, saveLabel = '保存', canSave = true, dirty = false, error, children }: Props) {
   const styles = useThemedStyles(createStyles);
 
   const viewport = useModalViewport(visible);
@@ -40,11 +42,12 @@ export function FormSheet({ presentation = 'form', visible, title, onClose, onSa
       { text: '変更を破棄', style: 'destructive', onPress: onClose },
     ]);
   };
-  return <><MotionModal visible={visible} transparent={Platform.OS === 'web'} presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'} animationType={reduceMotion ? 'none' : Platform.OS === 'web' ? 'fade' : 'slide'} onRequestClose={close}>
+  return <><MotionModal detail={presentation === 'detail'} detailOrigin={detailOrigin} onDetailDismiss={close} visible={visible} transparent={Platform.OS === 'web'} presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'} animationType={reduceMotion ? 'none' : Platform.OS === 'web' ? 'fade' : 'slide'} onRequestClose={close}>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} testID={presentation === 'detail' ? 'detail-modal-viewport' : 'form-modal-viewport'} style={[styles.overlay, viewport]}>
       {Platform.OS === 'web' ? <Pressable accessibilityLabel="シートを閉じる" onPress={close} style={StyleSheet.absoluteFill} /> : null}
       <SafeAreaView testID="form-sheet" edges={['top', 'bottom']} style={styles.sheet}>
         <View accessibilityViewIsModal testID="form-sheet-fill" style={styles.fill}>
+          {Platform.OS === 'web' && presentation === 'detail' ? <View testID="detail-dismiss-handle" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><View /></View> : null}
           <View testID="sheet-header" style={styles.header}>
             <Pressable accessibilityRole="button" accessibilityLabel="閉じる" onPress={close} style={styles.headerButton}><Text style={styles.close}>閉じる</Text></Pressable>
             <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{title}</Text>

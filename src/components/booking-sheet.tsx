@@ -1,3 +1,4 @@
+import type { DetailOrigin } from '@/utils/detail-origin';
 import { bookingDurationLabel } from '@/data/booking-duration';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { FileDrop, type DroppedFile } from './file-drop';
@@ -42,7 +43,7 @@ function blankDraft(day: string, kind: BookingKind = 'flight'): Draft {
   return { kind, title: '', detail: '', location: '', origin: '', originCode: '', destination: '', destinationCode: '', day, time: defaults[kind][0], endDay: kind === 'hotel' && day ? addDays(day, 1) : day, endTime: defaults[kind][1], confirmationCode: '', note: '' };
 }
 
-export function BookingSheet({ booking, onClose }: { booking?: Booking; onClose: () => void }) {
+export function BookingSheet({ booking, onClose, detailOrigin }: { booking?: Booking; onClose: () => void; detailOrigin?: DetailOrigin }) {
   const styles = useThemedStyles(createStyles);
 
   const toast = useToast();
@@ -128,7 +129,7 @@ export function BookingSheet({ booking, onClose }: { booking?: Booking; onClose:
   };
 
   return (
-      <FormSheet visible presentation={viewing ? 'detail' : 'form'} title={viewing ? '予約の詳細' : editingId ? '予約を編集' : '予約を追加'} onClose={onClose} onSave={canEdit ? viewing ? () => setViewing(false) : save : undefined} saveLabel={viewing ? '編集' : '保存'} canSave={viewing || Boolean(draft.title.trim())} dirty={!viewing && (JSON.stringify(draft) !== initialDraft || Boolean(selectedMergeItem))} error={formError}>
+      <FormSheet detailOrigin={detailOrigin} visible presentation={viewing ? 'detail' : 'form'} title={viewing ? '予約の詳細' : editingId ? '予約を編集' : '予約を追加'} onClose={onClose} onSave={canEdit ? viewing ? () => setViewing(false) : save : undefined} saveLabel={viewing ? '編集' : '保存'} canSave={viewing || Boolean(draft.title.trim())} dirty={!viewing && (JSON.stringify(draft) !== initialDraft || Boolean(selectedMergeItem))} error={formError}>
         {viewing && editingId ? <BookingDetails booking={{ id: editingId, ...draft }} documents={documentsByBooking[editingId] ?? []} /> : <>
               <Text style={styles.label}>種類</Text>
               <View style={styles.kindList}>
@@ -172,12 +173,12 @@ function BookingDetails({ booking, documents }: { booking: Booking; documents: B
   return <>
     <View style={styles.detailTicket}>
       <Text style={styles.detailKind}>{kind?.label}</Text>
-      <Text style={styles.detailTitle}>{booking.title}</Text>
+      <Text testID="detail-target-title" style={styles.detailTitle}>{booking.title}</Text>
       {route ? <BookingRoute booking={booking} /> : null}
       {booking.detail && booking.kind !== 'hotel' ? <Text selectable style={styles.detailBody}>{booking.detail}</Text> : null}
       <View style={styles.detailDates}>
-        <View style={styles.dateColumn}><Text style={styles.label}>{booking.kind === 'hotel' ? 'チェックイン' : route ? '出発' : '開始'}</Text><Text style={styles.detailTime}>{booking.time || '時刻未定'}</Text><Text style={styles.placeName}>{formatDate(booking.day, true)}</Text></View>
-        {booking.endDay && (booking.endDay !== booking.day || booking.endTime !== booking.time) ? <View style={styles.dateColumn}><Text style={styles.label}>{booking.kind === 'hotel' ? 'チェックアウト' : route ? '到着' : '終了'}</Text><Text style={styles.detailTime}>{booking.endTime || '時刻未定'}</Text><Text style={styles.placeName}>{formatDate(booking.endDay, true)}</Text></View> : null}
+        <View style={styles.dateColumn}><Text style={styles.label}>{booking.kind === 'hotel' ? 'チェックイン' : route ? '出発' : '開始'}</Text><Text testID="detail-target-time" style={styles.detailTime}>{booking.time || '時刻未定'}</Text><Text style={styles.placeName}>{formatDate(booking.day, true)}</Text></View>
+        {booking.endDay && (booking.endDay !== booking.day || booking.endTime !== booking.time) ? <View style={styles.dateColumn}><Text style={styles.label}>{booking.kind === 'hotel' ? 'チェックアウト' : route ? '到着' : '終了'}</Text><Text testID="detail-target-time-end" style={styles.detailTime}>{booking.endTime || '時刻未定'}</Text><Text style={styles.placeName}>{formatDate(booking.endDay, true)}</Text></View> : null}
       </View>
       {bookingDurationLabel(booking) ? <Text style={styles.journeyDuration}>{bookingDurationLabel(booking)}</Text> : null}
       {booking.kind === 'flight' ? <Text style={styles.placeName}>時刻は各空港の現地時刻</Text> : null}

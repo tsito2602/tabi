@@ -1,3 +1,4 @@
+import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
 import { MotionPresence } from '@/components/motion-presence';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { useRouter } from 'expo-router';
@@ -19,6 +20,7 @@ import { useToast } from '@/components/toast';
 import { useTripHeaderHeight } from '@/components/trip-header-context';
 
 export default function PlacesScreen() {
+  const [detailOrigin, setDetailOrigin] = useState<DetailOrigin>();
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
 
@@ -34,7 +36,7 @@ export default function PlacesScreen() {
   const [day, setDay] = useState('');
   const [category, setCategory] = useState<ItineraryCategory>('sightseeing');
   const filtered = useMemo(() => places.filter((place) => (filter === 'all' || place.status === filter) && `${place.title} ${place.note} ${place.location}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())), [places, filter, search]);
-  const open = (place?: Place) => setEditing(place ?? 'new');
+  const open = (place?: Place) => { if (!place) setDetailOrigin(undefined); setEditing(place ?? 'new'); };
   const plan = () => {
     if (!planning || !day || !canEdit) return;
     if (items.some((item) => item.id === planning.itineraryItemId)) { setPlanning(null); return; }
@@ -53,9 +55,9 @@ export default function PlacesScreen() {
         const status = placeStatuses.find((entry) => entry.value === place.status)!;
         const reservation = reservationStatuses.find((entry) => entry.value === place.reservationStatus)!;
         return <View key={place.id} testID="place-card" style={[styles.card, place.status === 'visited' && styles.visited]}>
-          <Pressable accessibilityRole="button" onPress={() => open(place)} style={styles.cardBody} accessibilityLabel={`${place.title}の詳細を開く`}>
+          <Pressable accessibilityRole="button" onPress={(event) => { setDetailOrigin(captureDetailOrigin(event)); open(place); }} style={styles.cardBody} accessibilityLabel={`${place.title}の詳細を開く`}>
             <View style={styles.cardTop}><Text style={styles.serial}>SPOT / {String(index + 1).padStart(2, '0')}</Text><Text style={[styles.reservation, place.reservationStatus === 'needed' && styles.needed]}>{reservation.label}</Text></View>
-            <Text style={styles.placeTitle}>{place.title}</Text>
+            <Text testID="detail-source-title" style={styles.placeTitle}>{place.title}</Text>
             {place.note ? <Text numberOfLines={3} style={styles.note}>{place.note}</Text> : null}
             {place.openingHours ? <Text style={styles.hours}>◷　{place.openingHours}</Text> : null}
             {place.location ? <Text numberOfLines={1} style={styles.location}>{/^https?:/i.test(place.location) ? '地図リンクを保存済み' : place.location}</Text> : null}
@@ -72,7 +74,7 @@ export default function PlacesScreen() {
       })}</View>}
     </ScrollView>
     {canEdit ? <FloatingAddButton label="場所を追加" onPress={() => open()} /> : null}
-    <MotionPresence>{editing ? <PlaceSheet key={editing === 'new' ? 'new' : editing.id} place={editing === 'new' ? undefined : places.find((place) => place.id === editing.id) ?? editing} onClose={() => setEditing(null)} onPlan={canEdit || (editing !== 'new' && items.some((item) => item.id === editing.itineraryItemId)) ? (place) => {
+    <MotionPresence>{editing ? <PlaceSheet detailOrigin={detailOrigin} key={editing === 'new' ? 'new' : editing.id} place={editing === 'new' ? undefined : places.find((place) => place.id === editing.id) ?? editing} onClose={() => setEditing(null)} onPlan={canEdit || (editing !== 'new' && items.some((item) => item.id === editing.itineraryItemId)) ? (place) => {
       setEditing(null);
       const item = items.find((entry) => entry.id === place.itineraryItemId);
       if (item && selectedTrip) router.push({ pathname: '/trips/[tripId]/itinerary', params: { tripId: selectedTrip.id, itemId: item.id } });

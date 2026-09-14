@@ -1,3 +1,4 @@
+import type { DetailOrigin } from '@/utils/detail-origin';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
@@ -13,9 +14,9 @@ import { confirmDeletion } from '@/utils/confirm-deletion';
 
 const empty: PlaceInput = { title: '', note: '', openingHours: '', reservationStatus: 'not_needed', location: '', referenceLinks: [], status: 'want' };
 
-type Props = { place?: Place; onClose: () => void; onPlan?: (place: Place) => void; onEditSchedule?: () => void };
+type Props = { detailOrigin?: DetailOrigin; place?: Place; onClose: () => void; onPlan?: (place: Place) => void; onEditSchedule?: () => void };
 
-export function PlaceSheet({ place, onClose, onPlan, onEditSchedule }: Props) {
+export function PlaceSheet({ place, onClose, onPlan, onEditSchedule, detailOrigin }: Props) {
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
   const toast = useToast();
@@ -46,11 +47,11 @@ export function PlaceSheet({ place, onClose, onPlan, onEditSchedule }: Props) {
   };
   const remove = () => { if (!editingId) return; confirmDeletion('この場所を削除しますか？', draft.title, () => { deletePlace(editingId); onClose(); }); };
   return (
-    <FormSheet visible presentation={viewing ? 'detail' : 'form'} title={viewing ? '場所の詳細' : !editingId ? '場所を追加' : '場所を編集'} onClose={onClose} onSave={canEdit ? viewing ? edit : save : undefined} saveLabel={viewing ? '編集' : '保存'} canSave={viewing || Boolean(draft.title.trim())} dirty={!viewing && JSON.stringify(draft) !== initial} error={error}>
+    <FormSheet detailOrigin={detailOrigin} visible presentation={viewing ? 'detail' : 'form'} title={viewing ? '場所の詳細' : !editingId ? '場所を追加' : '場所を編集'} onClose={onClose} onSave={canEdit ? viewing ? edit : save : undefined} saveLabel={viewing ? '編集' : '保存'} canSave={viewing || Boolean(draft.title.trim())} dirty={!viewing && JSON.stringify(draft) !== initial} error={error}>
       {viewing ? <View testID="place-details" style={styles.details}>
-        <Text accessibilityRole="header" selectable style={styles.detailTitle}>{details.title}</Text>
+        <Text testID="detail-target-title" accessibilityRole="header" selectable style={styles.detailTitle}>{details.title}</Text>
         {onPlan && currentPlace ? <Pressable accessibilityRole="button" style={styles.mapButton} onPress={() => onPlan(currentPlace)}><Text style={styles.actionText}>{items.some((item) => item.id === details.itineraryItemId) ? 'しおりを見る' : 'しおりへ'}</Text></Pressable> : null}
-        {onEditSchedule && itineraryItem ? <View style={styles.detailSection}><Text style={styles.detailLabel}>予定の日時</Text><Text style={styles.detailValue}>{itineraryItem.day.replaceAll('-', '/')}　{itineraryItem.time || '時刻未定'}</Text>{canEdit ? <Pressable accessibilityRole="button" style={styles.mapButton} onPress={onEditSchedule}><Text style={styles.actionText}>日時を編集</Text></Pressable> : null}</View> : null}
+        {onEditSchedule && itineraryItem ? <View style={styles.detailSection}><Text style={styles.detailLabel}>予定の日時</Text><Text style={styles.detailValue}>{itineraryItem.day.replaceAll('-', '/')}　<Text testID="detail-target-time">{itineraryItem.time || '時刻未定'}</Text></Text>{canEdit ? <Pressable accessibilityRole="button" style={styles.mapButton} onPress={onEditSchedule}><Text style={styles.actionText}>日時を編集</Text></Pressable> : null}</View> : null}
         <View style={styles.detailStatus}><PlaceStatusIcon status={details.status} size={20} /><Text style={styles.statusText}>{placeStatuses.find((item) => item.value === details.status)?.label}</Text></View>
         {details.location ? <View style={styles.detailSection}><Text style={styles.detailLabel}>場所</Text><Text selectable style={styles.detailValue}>{details.location}</Text></View> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={`${details.title}の地図を開く`} onPress={() => { const url = mapUrl(details.location, details.title); if (url) void Linking.openURL(url); }} style={styles.mapButton}><SymbolView name={{ ios: 'map', android: 'map', web: 'map' }} size={20} tintColor={palette.ocean} /><Text style={styles.actionText}>地図を開く</Text></Pressable>

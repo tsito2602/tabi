@@ -1,0 +1,50 @@
+/* The real dialog stays opaque; only its contents fade. No document snapshot
+   or second live screen is needed for an origin-to-detail transition. */
+.motion-overlay[data-presentation="detail"] [data-detail-motion] {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  transition: none !important;
+  animation: none !important;
+  transform-origin: center;
+}
+.detail-motion-label {
+  position: fixed;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+  user-select: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+  transform-origin: top left;
+}
+[data-testid="detail-dismiss-handle"] { display: none !important; }
+@media (max-width: 600px) {
+  [data-testid="detail-dismiss-handle"] {
+    display: flex !important;
+    height: 32px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    cursor: grab;
+  }
+  [data-testid="detail-dismiss-handle"] > div {
+    width: 36px;
+    height: 4px;
+    border-radius: 4px;
+    background: var(--ocean);
+    opacity: .35;
+  }
+}
+.motion-overlay.is-open .motion-viewport[data-detail-drag]::before {
+  opacity: var(--detail-backdrop-opacity, 1);
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="detail-dismiss-handle"] { display: none !important; }
+}

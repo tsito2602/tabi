@@ -1,3 +1,4 @@
+import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
 import { MotionTabs } from '@/components/motion-tabs';
 import { MotionPresence } from '@/components/motion-presence';
 import { bookingDurationLabel } from '@/data/booking-duration';
@@ -25,6 +26,7 @@ export default function BookingsScreen() {
 }
 
 function TripBookingsScreen() {
+  const [detailOrigin, setDetailOrigin] = useState<DetailOrigin>();
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
 
@@ -37,14 +39,14 @@ function TripBookingsScreen() {
   const [connectionBookingId, setConnectionBookingId] = useState<string | null>(null);
   const connections = useMemo(() => new Map(findFlightConnections(bookings).map((connection) => [connection.arrivalBookingId, connection])), [bookings]);
   const filtered = bookings.filter((booking) => (kindFilter === 'all' || booking.kind === kindFilter) && `${booking.title} ${booking.detail} ${booking.origin} ${booking.destination} ${booking.originCode} ${booking.destinationCode} ${booking.confirmationCode}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
-  const openCreate = () => setOpenedBooking('new');
+  const openCreate = () => { setDetailOrigin(undefined); setOpenedBooking('new'); };
   const selectedBooking = bookings.find((booking) => booking.id === openedBooking);
 
   useEffect(() => {
     const bookingId = Array.isArray(requestedBooking) ? requestedBooking[0] : requestedBooking;
     if (!bookingId || !bookings.some((booking) => booking.id === bookingId)) return;
     const timeout = setTimeout(() => {
-      setOpenedBooking(bookingId);
+      setDetailOrigin(undefined); setOpenedBooking(bookingId);
       router.setParams({ booking: undefined });
     }, 0);
     return () => clearTimeout(timeout);
@@ -76,16 +78,16 @@ function TripBookingsScreen() {
               const connection = connections.get(booking.id);
               return (
                 <View key={booking.id}>
-                <Pressable testID="booking-ticket" onPress={() => setOpenedBooking(booking.id)} style={({ pressed }) => [styles.ticket, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel={`${booking.title}の詳細`}>
+                <Pressable testID="booking-ticket" onPress={(event) => { setDetailOrigin(captureDetailOrigin(event)); setOpenedBooking(booking.id); }} style={({ pressed }) => [styles.ticket, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel={`${booking.title}の詳細`}>
                   <View style={styles.copy}>
                     <View style={styles.ticketTop}>
                       <View style={styles.typeTag}><Text style={styles.type}>{kind.short}</Text></View>
                       <View style={styles.ticketTopMeta}>{documentCount ? <Text style={styles.documentCount}>書類 {documentCount}</Text> : null}<Text style={styles.serial}>TABI/{String(index + 1).padStart(2, '0')}</Text></View>
                     </View>
-                    <Text numberOfLines={2} style={styles.cardTitle}>{booking.title}</Text>
+                    <Text testID="detail-source-title" numberOfLines={2} style={styles.cardTitle}>{booking.title}</Text>
                     {hasRoute ? <BookingRoute booking={booking} compact /> : detail ? <Text numberOfLines={2} style={styles.detail}>{detail}</Text> : null}
                     {hasRoute && booking.detail ? <Text numberOfLines={1} style={styles.detail}>{booking.detail}</Text> : null}
-                    <Text style={styles.meta}>{formatDate(booking.day)}　{booking.time}{booking.endDay !== booking.day ? ` → ${formatDate(booking.endDay)}` : booking.endTime && booking.endTime !== booking.time ? ` – ${booking.endTime}` : ''}</Text>
+                    <Text style={styles.meta}>{formatDate(booking.day)}　<Text testID="detail-source-time">{booking.time}</Text>{booking.endDay !== booking.day ? ` → ${formatDate(booking.endDay)}` : booking.endTime && booking.endTime !== booking.time ? ` – ${booking.endTime}` : ''}</Text>
                     {bookingDurationLabel(booking) ? <Text style={styles.meta}>{bookingDurationLabel(booking)}</Text> : null}
                   </View>
                   <View testID="ticket-stub" style={styles.stub}>
@@ -107,7 +109,7 @@ function TripBookingsScreen() {
       {selectedTrip && canEdit ? <FloatingAddButton label="予約を追加する" onPress={openCreate} /> : null}
       <MotionPresence>{connectionBookingId ? <FlightConnectionSheet bookingId={connectionBookingId} onClose={() => setConnectionBookingId(null)} /> : null}</MotionPresence>
 
-      <MotionPresence>{openedBooking === 'new' || selectedBooking ? <BookingSheet key={openedBooking} booking={selectedBooking} onClose={() => setOpenedBooking(null)} /> : null}</MotionPresence>
+      <MotionPresence>{openedBooking === 'new' || selectedBooking ? <BookingSheet detailOrigin={detailOrigin} key={openedBooking} booking={selectedBooking} onClose={() => setOpenedBooking(null)} /> : null}</MotionPresence>
     </SafeAreaView>
   );
 }
