@@ -8,6 +8,8 @@ Closes #
 
 ## 確認
 
+`AGENTS.md`に従い、変更に関係する項目だけ確認する。対象外の項目は理由を記載する。
+
 - [ ] `npm run check`
 - [ ] iOS
 - [ ] Android
