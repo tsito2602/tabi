@@ -1,7 +1,8 @@
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { MemberAvatar } from './member-avatar';
-import { PropsWithChildren, useEffect } from 'react';
-import { Link, usePathname } from 'expo-router';
+import { navigateTrip } from '@/utils/trip-navigation';
+import { ComponentProps, PropsWithChildren, useEffect } from 'react';
+import { Link, usePathname, useRouter } from 'expo-router';
 import { BrandLogo } from '@/components/brand-logo';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
@@ -25,9 +26,17 @@ export function WebWorkspace({ children }: PropsWithChildren) {
 
   const desktop = useDesktop();
   const pathname = usePathname();
+  const router = useRouter();
   const { selectedTrip, syncing, sync } = useTravel();
   const { user, isDemo } = useAuth();
   const trip = pathname.startsWith('/trips/') ? selectedTrip : null;
+  const openHome: NonNullable<ComponentProps<typeof Link>['onPress']> = (event) => {
+    const click = event.nativeEvent as MouseEvent;
+    // Preserve modified-click/new-tab semantics of the real anchor.
+    if (!trip || event.defaultPrevented || click.button > 0 || click.metaKey || click.ctrlKey || click.shiftKey || click.altKey) return;
+    event.preventDefault();
+    navigateTrip(trip.id, 'close', () => router.replace('/'));
+  };
   useEffect(() => {
     // A missed drop must never replace the app with a local file.
     const preventFileNavigation = (event: DragEvent) => {
@@ -48,8 +57,8 @@ export function WebWorkspace({ children }: PropsWithChildren) {
   return <View testID="web-workspace" style={styles.workspace}>
     {desktop ? <a href="#workspace-main" className="skip-link">本文へ移動</a> : null}
     {desktop ? <View role="navigation" accessibilityLabel="メインナビゲーション" style={styles.sidebar}>
-      <Link href="/" style={styles.brand} accessibilityLabel="tabi 旅行一覧"><BrandLogo style={{ width: 50, height: 50 }} contentFit="contain" /><Text style={styles.wordmark}>tabi</Text></Link>
-      <Link href="/" style={[styles.nav, pathname === '/' && styles.selected]}><SymbolView name={{ web: 'luggage' }} size={21} tintColor={palette.ocean} /><Text style={styles.navText}>すべての旅行</Text></Link>
+      <Link href="/" onPress={openHome} style={styles.brand} accessibilityLabel="tabi 旅行一覧"><BrandLogo style={{ width: 50, height: 50 }} contentFit="contain" /><Text style={styles.wordmark}>tabi</Text></Link>
+      <Link href="/" onPress={openHome} style={[styles.nav, pathname === '/' && styles.selected]}><SymbolView name={{ web: 'luggage' }} size={21} tintColor={palette.ocean} /><Text style={styles.navText}>すべての旅行</Text></Link>
       {trip ? <View style={styles.section}>
         <View style={styles.links}>{pages.map((page) => <Link key={page.key} href={{ pathname: `/trips/[tripId]/${page.key}`, params: { tripId: trip.id } }} style={[styles.nav, pathname.endsWith(`/${page.key}`) && styles.selected]} aria-current={pathname.endsWith(`/${page.key}`) ? 'page' : undefined}><SymbolView name={{ web: page.icon }} size={21} tintColor={palette.ocean} /><Text style={styles.navText}>{page.label}</Text></Link>)}</View>
       </View> : null}

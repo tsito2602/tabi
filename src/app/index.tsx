@@ -1,3 +1,4 @@
+import { navigateTrip } from '@/utils/trip-navigation';
 import { MotionPage } from '@/components/motion-page';
 import { MotionPresence } from '@/components/motion-presence';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
@@ -34,8 +35,10 @@ export default function HomeScreen() {
     void acceptInvite(token).then(() => setNotice('旅行に参加しました')).catch((cause) => setNotice(cause instanceof Error ? cause.message : '招待リンクを確認してください')).finally(() => router.replace('/'));
   }, [acceptInvite, invite, ready, isDemo]);
   const openTrip = (tripId: string) => {
-    selectTrip(tripId);
-    router.push({ pathname: '/trips/[tripId]/itinerary', params: { tripId } });
+    navigateTrip(tripId, 'open', () => {
+      selectTrip(tripId);
+      router.push({ pathname: '/trips/[tripId]/itinerary', params: { tripId } });
+    });
   };
   const today = localDate();
   const matchingTrips = trips.filter((trip) => `${trip.name} ${trip.destination}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));

@@ -1,7 +1,7 @@
 {
   "name": "tabi",
   "main": "expo-router/entry",
-  "version": "1.6.3",
+  "version": "1.7.0",
   "dependencies": {
     "@expo/ui": "~57.0.14",
     "expo": "~57.0.17",
@@ -67,7 +67,7 @@
     "test:pwa": "node scripts/test-pwa-api.mjs && node scripts/test-service-worker.mjs && node scripts/test-icon-check.mjs",
     "icons:export": "node scripts/export-brand.mjs",
     "test:ui": "node scripts/test-ui-boundaries.mjs",
-    "test:motion": "node scripts/test-motion.mjs"
+    "test:motion": "node scripts/test-motion.mjs && node scripts/test-trip-navigation.mjs"
   },
   "private": true
 }

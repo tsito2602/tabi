@@ -15,10 +15,12 @@ export function TripHero({ trip, height, scrollY }: { trip: Trip; height: number
   const blur = scrollY.interpolate({ inputRange: range, outputRange: [0, 9], extrapolate: 'clamp' });
   const opacity = scrollY.interpolate({ inputRange: [0, height * 0.4], outputRange: [1, 0], extrapolate: 'clamp' });
   return <View pointerEvents="none" testID="trip-hero" style={[styles.hero, { height }]}>
+    <View testID="trip-hero-art" style={StyleSheet.absoluteFill}>
     {trip.coverImage
       ? <Animated.Image testID="trip-hero-photo" source={{ uri: trip.coverImage }} resizeMode="cover" blurRadius={reduced ? 0 : blur} style={[StyleSheet.absoluteFill, { transform: [{ scale: reduced ? 1 : scale }] }]} />
       : <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale: reduced ? 1 : scale }] }]}><TripCover fill /></Animated.View>}
     <View testID="trip-hero-shade" style={[StyleSheet.absoluteFill, styles.shade]} />
+    </View>
     <Animated.View style={[styles.caption, { opacity }]}>
       <Text style={styles.eyebrow}>TABI / TRAVEL JOURNAL</Text>
       <Text numberOfLines={2} style={styles.destination}>{trip.destination || trip.name}</Text>
