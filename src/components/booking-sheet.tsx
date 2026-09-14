@@ -171,7 +171,7 @@ function BookingDetails({ booking, documents }: { booking: Booking; documents: B
   const kind = BOOKING_KINDS.find((entry) => entry.value === booking.kind);
   const route = Boolean(booking.originCode || booking.origin || booking.destinationCode || booking.destination);
   return <>
-    <View style={styles.detailTicket}>
+    <View testID="booking-details-summary" style={styles.detailTicket}>
       <Text style={styles.detailKind}>{kind?.label}</Text>
       <Text testID="detail-target-title" style={styles.detailTitle}>{booking.title}</Text>
       {route ? <BookingRoute booking={booking} /> : null}

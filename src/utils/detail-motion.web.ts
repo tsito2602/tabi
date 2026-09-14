@@ -1,5 +1,5 @@
 import type { DetailOrigin, DetailRect } from './detail-origin';
-import { detailRect, labelStyle } from './detail-origin.web';
+import { detailRect } from './detail-origin.web';
 
 const ease = 'cubic-bezier(.22, 1, .36, 1)';
 const normal = { transform: 'translate3d(0px, 0px, 0px)', clipPath: 'inset(0px)', opacity: '1' };
@@ -9,11 +9,27 @@ export function detailPose(from: DetailRect, to: DetailRect, radius: number) {
   return { transform: `translate3d(${from.left + from.width / 2 - to.left - to.width / 2}px, ${from.top + from.height / 2 - to.top - to.height / 2}px, 0px)${scale > 1 ? ` scale(${scale})` : ''}`, clipPath: `inset(${y}px ${x}px round ${radius}px)`, opacity: '1' };
 }
 
+// Animate semantic sections, not every nested label. Both an ancestor and its
+// descendants must never fade, translate or accumulate delays together.
+export function detailContentBlocks(content: HTMLElement): HTMLElement[] {
+  const header = content.querySelector<HTMLElement>('[data-testid="sheet-header"]');
+  const scroll = content.querySelector<HTMLElement>('[data-testid="form-sheet-scroll"]');
+  const container = scroll?.firstElementChild;
+  const wrappers = '[data-testid="place-details"], [data-testid="itinerary-item-details"], [data-testid="booking-details-summary"]';
+  const sections = Array.from(container?.children ?? []).flatMap((element) =>
+    element.matches(wrappers) ? Array.from(element.children) : [element]);
+  const win = content.ownerDocument.defaultView!;
+  const blocks = [header, ...sections].filter((element): element is HTMLElement =>
+    element instanceof win.HTMLElement && element.getClientRects().length > 0
+    && win.getComputedStyle(element).display !== 'none');
+  return blocks.length ? blocks : [content];
+}
+
 /** Owns one mounted detail surface. CSS still owns layout and the backdrop. */
 export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, origin: DetailOrigin | undefined, requestClose: () => void) {
   const doc = surface.ownerDocument, win = doc.defaultView!;
   const content = surface.querySelector<HTMLElement>('[data-testid="form-sheet-fill"]');
-  let animations: Animation[] = [], labels: HTMLElement[] = [], restoreLabels: (() => void)[] = [];
+  let animations: Animation[] = [];
   let generation = 0, opened = false, isOpen = false, disposed = false;
   let closingDone: (() => void) | undefined;
   let handle: HTMLElement | null = null;
@@ -35,14 +51,9 @@ export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, 
     }
     return { element, rect };
   };
-  const removeLabels = () => {
-    restoreLabels.splice(0).forEach((restore) => restore());
-    labels.splice(0).forEach((label) => label.remove());
-  };
   const cancel = () => {
     generation++;
     animations.splice(0).forEach((animation) => animation.cancel());
-    removeLabels();
   };
   const play = (element: HTMLElement, frames: Keyframe[], duration: number, delay = 0) => {
     const animation = element.animate(frames, { duration, delay, easing: ease, fill: 'both' });
@@ -72,43 +83,21 @@ export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, 
     };
     win.requestAnimationFrame(() => win.requestAnimationFrame(restore));
   };
-  const sharedLabels = (opening: boolean, duration: number) => {
-    const live = source();
-    if (!live || !origin) return;
-    for (const entry of origin.labels) {
-      const target = Array.from(surface.querySelectorAll<HTMLElement>(`[data-testid="detail-target-${entry.key}"]`)).find((element) => element.textContent?.trim() === entry.text);
-      const currentSource = live.element.querySelector<HTMLElement>(`[data-testid="detail-source-${entry.key}"]`);
-      if (!target || !currentSource || currentSource.textContent?.trim() !== entry.text) continue;
-      const targetRect = detailRect(target), sourceRect = opening ? entry.rect : detailRect(currentSource);
-      const sheetRect = surface.getBoundingClientRect();
-      if (!targetRect.width || targetRect.top < sheetRect.top || targetRect.top + targetRect.height > sheetRect.bottom) continue;
-      const from = opening ? sourceRect : targetRect, to = opening ? targetRect : sourceRect;
-      const fromStyle = opening ? entry.style : labelStyle(target), toStyle = opening ? labelStyle(target) : labelStyle(currentSource);
-      const label = doc.createElement('div');
-      label.className = 'detail-motion-label';
-      label.setAttribute('aria-hidden', 'true');
-      label.textContent = entry.text;
-      Object.assign(label.style, fromStyle, { left: `${from.left}px`, top: `${from.top}px`, width: `${from.width}px`, height: `${from.height}px` });
-      viewport.appendChild(label); labels.push(label);
-      const previous = target.style.visibility;
-      target.style.visibility = 'hidden';
-      restoreLabels.push(() => { target.style.visibility = previous; });
-      play(label, [
-        { ...fromStyle, width: `${from.width}px`, height: `${from.height}px`, transform: 'translate(0px, 0px)', opacity: 1 },
-        { ...toStyle, width: `${to.width}px`, height: `${to.height}px`, transform: `translate(${to.left - from.left}px, ${to.top - from.top}px)`, opacity: 1 },
-      ], duration);
-    }
-  };
   const settle = () => {
     cancel(); clearDrag(); resetStyles();
     const complete = closingDone; closingDone = undefined;
     if (!isOpen) { complete?.(); returnFocus(); }
   };
   const animate = (open: boolean, reduced: boolean, done: () => void) => {
-    const interrupted = animations.length > 0 || Boolean(surface.style.transform);
     const current = win.getComputedStyle(surface);
     const start = { transform: current.transform, clipPath: current.clipPath, opacity: current.opacity };
-    const contentOpacity = content ? win.getComputedStyle(content).opacity : '1';
+    const blocks = content ? detailContentBlocks(content) : [];
+    // Capture each block before cancellation so a close during the reveal
+    // cannot briefly expose blocks that have not appeared yet.
+    const states = blocks.map((element) => {
+      const css = win.getComputedStyle(element);
+      return { opacity: css.opacity, transform: css.transform };
+    });
     const first = !opened;
     isOpen = open;
     closingDone = open ? undefined : done;
@@ -121,15 +110,20 @@ export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, 
     const target = detailRect(surface);
     const expanded = { ...normal, clipPath: `inset(0px round ${win.getComputedStyle(surface).borderRadius || '24px'})` };
     const pose = live && origin ? detailPose(first ? origin.rect : live.rect, target, origin.radius) : { ...normal, transform: 'translate3d(0px, 16px, 0px)', opacity: '0' };
-    const duration = open ? 360 : 260;
+    const duration = open ? 280 : 240;
     const token = generation;
     let valid = true;
     try {
-      // Measure labels before transforming their ancestor. The real content is
-      // faded separately, preventing stretched glyphs and a final-frame pop.
-      if (!interrupted) sharedLabels(open, duration);
+      // The opaque surface arrives first. No detached title/time copies fly
+      // across the screen; all content appears where it will be read.
       play(surface, [open && first ? pose : start, open ? expanded : { ...pose, opacity: '0' }], duration);
-      if (content) play(content, open ? [{ opacity: first ? 0 : contentOpacity }, { opacity: 1 }] : [{ opacity: contentOpacity }, { opacity: 0 }], open ? 230 : 150, open && first ? 90 : 0);
+      blocks.forEach((element, index) => {
+        const from = open && first ? { opacity: '0', transform: 'translate3d(0px, 10px, 0px)' } : states[index];
+        const to = open ? { opacity: '1', transform: 'translate3d(0px, 0px, 0px)' } : { opacity: '0', transform: 'translate3d(0px, 6px, 0px)' };
+        // Bound the tail even for many sections. Closing/reopening never
+        // waits for the entrance sequence to finish.
+        play(element, [from, to], open ? 220 : 120, open && first ? duration + Math.min(index, 4) * 32 : 0);
+      });
       const work = [...animations];
       void Promise.allSettled(work.map((animation) => animation.finished)).then(() => {
         if (!valid || disposed || token !== generation) return;
@@ -193,11 +187,15 @@ export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, 
     handle?.addEventListener('lostpointercapture', cancelled);
   };
   const resize = () => settle();
+  const keydown = (event: KeyboardEvent) => {
+    if (event.key === 'Tab' && isOpen && animations.length) settle();
+  };
+  surface.addEventListener('keydown', keydown);
   win.addEventListener('resize', resize);
   win.visualViewport?.addEventListener('resize', resize);
   return {
     setOpen(open: boolean, reduced: boolean, done: () => void) { bindHandle(); return animate(open, reduced, done); },
     suspend() { isOpen = true; closingDone = undefined; settle(); delete surface.dataset.detailMotion; detachHandle(); handle = null; },
-    dispose() { disposed = true; closingDone = undefined; cancel(); clearDrag(); resetStyles(); delete surface.dataset.detailMotion; detachHandle(); win.removeEventListener('resize', resize); win.visualViewport?.removeEventListener('resize', resize); },
+    dispose() { disposed = true; closingDone = undefined; cancel(); clearDrag(); resetStyles(); delete surface.dataset.detailMotion; detachHandle(); surface.removeEventListener('keydown', keydown); win.removeEventListener('resize', resize); win.visualViewport?.removeEventListener('resize', resize); },
   };
 }

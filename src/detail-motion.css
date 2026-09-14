@@ -8,20 +8,6 @@
   animation: none !important;
   transform-origin: center;
 }
-.detail-motion-label {
-  position: fixed;
-  z-index: 2;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  pointer-events: none;
-  user-select: none;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  box-sizing: border-box;
-  transform-origin: top left;
-}
 [data-testid="detail-dismiss-handle"] { display: none !important; }
 @media (max-width: 600px) {
   [data-testid="detail-dismiss-handle"] {

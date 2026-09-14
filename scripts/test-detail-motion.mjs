@@ -8,11 +8,11 @@ function load(path) {
   new Function('require', 'module', 'exports', js)((name) => name === './detail-origin.web' ? load('src/utils/detail-origin.web.ts') : {}, module, module.exports);
   return module.exports;
 }
-const { createDetailMotion, detailPose } = load('src/utils/detail-motion.web.ts');
+const { createDetailMotion, detailPose, detailContentBlocks } = load('src/utils/detail-motion.web.ts');
 const flush = () => new Promise(setImmediate);
 assert.deepEqual(detailPose({ left: 20, top: 300, width: 350, height: 100 }, { left: 0, top: 100, width: 390, height: 700 }, 12), { transform: 'translate3d(0px, -100px, 0px)', clipPath: 'inset(300px 20px round 12px)', opacity: '1' });
 function fixture() {
-  const dom = new JSDOM('<!doctype html><style>[data-detail-motion]{transform:none;opacity:1;clip-path:inset(0px)}</style><button id="source"><span data-testid="detail-source-title">美術館</span><span data-testid="detail-source-time">10:00</span></button><div id="viewport"><section id="surface"><div data-testid="form-sheet-fill"><div data-testid="detail-dismiss-handle"></div><h2 data-testid="detail-target-title">美術館</h2><span data-testid="detail-target-time">10:00</span></div></section></div>', { pretendToBeVisual: true });
+  const dom = new JSDOM('<!doctype html><style>[data-detail-motion]{transform:none;opacity:1;clip-path:inset(0px)}</style><button id="source"><span data-testid="detail-source-title">美術館</span><span data-testid="detail-source-time">10:00</span></button><div id="viewport"><section id="surface"><div data-testid="form-sheet-fill"><div data-testid="detail-dismiss-handle"></div><header data-testid="sheet-header">予定の詳細</header><div data-testid="form-sheet-scroll"><div><div data-testid="itinerary-item-details"><h2 data-testid="detail-target-title">美術館</h2><span data-testid="detail-target-time">10:00</span><section id="note"><p>メモ</p><p>展示を見る</p></section></div></div></div></div></section></div>', { pretendToBeVisual: true });
   const { document: doc } = dom.window;
   dom.window.matchMedia = () => ({ matches: false });
   const rect = (left, top, width, height) => ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top });
@@ -41,7 +41,15 @@ function fixture() {
 {
   const f = fixture(); let completed = 0;
   f.motion.setOpen(true, false, () => completed++);
-  assert.equal(f.doc.querySelectorAll('.detail-motion-label').length, 2);
+  assert.equal(f.doc.querySelectorAll('.detail-motion-label').length, 0, 'no detached title or time is created');
+  const surfaceAnimation = f.records.find(record => record.element === f.surface);
+  const sections = f.records.filter(record => record.element !== f.surface);
+  assert.equal(sections.length, 4, 'header, title, time and note are semantic blocks');
+  assert(sections.every(record => record.options.delay >= surfaceAnimation.options.duration), 'content waits for the surface');
+  assert(sections.every(record => record.frames[0].opacity === '0' && record.frames[0].transform.includes('10px')), 'all contents rise from below');
+  assert(sections.every(record => record.options.fill === 'both'), 'pending blocks do not flash before their delay');
+  assert(sections[1].options.delay < sections[2].options.delay);
+  assert(!sections.some(record => record.element.tagName === 'P'), 'nested paragraphs do not animate twice');
   assert.equal(f.records.find((record) => record.element === f.surface).frames[0].opacity, '1', 'the expanding surface stays opaque');
   await f.finish();
   assert.equal(completed, 0);
@@ -65,7 +73,7 @@ function fixture() {
   f.motion.setOpen(true, false, () => {}); await f.finish();
   f.source.remove();
   f.motion.setOpen(false, false, () => closed++);
-  assert.equal(f.records.at(-2).frames.at(-1).transform, 'translate3d(0px, 16px, 0px)', 'deleted origin falls back to a short fade, never a stale position');
+  assert.equal(f.records.filter(record => record.element === f.surface).at(-1).frames.at(-1).transform, 'translate3d(0px, 16px, 0px)', 'deleted origin falls back to a short fade, never a stale position');
   await f.finish(); assert.equal(closed, 1); f.close();
 }
 for (const supported of [true, false]) {
@@ -80,10 +88,38 @@ for (const supported of [true, false]) {
   const f = fixture();
   f.doc.querySelector('h2').textContent = '別の情報';
   f.motion.setOpen(true, false, () => {});
-  assert.equal(f.doc.querySelectorAll('.detail-motion-label').length, 1, 'only semantically equal information is shared');
+  assert.equal(f.doc.querySelectorAll('.detail-motion-label').length, 0, 'text matching no longer controls the animation');
   f.motion.suspend(); await f.finish();
   assert.equal(f.surface.hasAttribute('data-detail-motion'), false);
   assert.equal(f.doc.querySelectorAll('.detail-motion-label').length, 0);
   f.close();
 }
-console.log('Detail motion: origin geometry, opaque surface, matching labels, completion, interruption, deleted origin, reduced/unsupported motion and cleanup passed.');
+{
+  const f = fixture();
+  const body = f.doc.querySelector('[data-testid="itinerary-item-details"]');
+  for (let i = 0; i < 30; i++) { const section = f.doc.createElement('section'); section.textContent = String(i); body.append(section); }
+  f.motion.setOpen(true, false, () => {});
+  assert.equal(detailContentBlocks(f.doc.querySelector('[data-testid="form-sheet-fill"]')).length, 34);
+  const blocks = f.records.filter(record => record.element !== f.surface);
+  assert(Math.max(...blocks.map(record => record.options.delay)) <= 408, 'a long detail cannot queue seconds of delay');
+  assert.equal(f.doc.querySelector('h2').style.visibility, '');
+  f.motion.suspend(); await f.finish();
+  assert.equal(f.surface.hasAttribute('data-detail-motion'), false);
+  f.close();
+}
+{
+  const f = fixture(); let closed = 0;
+  f.motion.setOpen(true, false, () => {});
+  const at = f.records.length;
+  f.motion.setOpen(false, false, () => closed++);
+  assert(f.records.slice(at).every(record => record.options.delay === 0), 'closing interrupts pending section reveals immediately');
+  await f.finish(); assert.equal(closed, 1); f.close();
+}
+{
+  const f = fixture(); f.motion.setOpen(true, false, () => {});
+  f.surface.dispatchEvent(new f.dom.window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+  await f.finish();
+  assert.equal(f.doc.querySelector('h2').style.visibility, '', 'keyboard navigation exposes all content without waiting');
+  f.close();
+}
+console.log('Detail motion: origin geometry, opaque surface, staged sections without shared labels, bounded delay, completion, interruption, deleted origin, reduced/unsupported motion and cleanup passed.');

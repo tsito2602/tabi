@@ -17,11 +17,15 @@ export function MotionModal({ children, visible = true, motion = 'modal', onRequ
   const open = visible && present;
   const reduced = useReducedMotion();
   const [mounted, setMounted] = useState(open);
-  const [snapshot, setSnapshot] = useState({ open, children });
-  if (snapshot.open !== open || (open && snapshot.children !== children)) {
-    setSnapshot({ open, children: open ? children : snapshot.children });
+  const [snapshot, setSnapshot] = useState({ open, children, detail, detailOrigin });
+  if (snapshot.open !== open || (open && (snapshot.children !== children || snapshot.detail !== detail || snapshot.detailOrigin !== detailOrigin))) {
+    setSnapshot(open ? { open, children, detail, detailOrigin } : { ...snapshot, open });
     if (open) setMounted(true);
   }
+  // Clearing the selected item can change presentation and origin in the same
+  // render as visible=false. Retain them with the outgoing DOM until it exits.
+  const presentedDetail = open ? detail : snapshot.detail;
+  const presentedOrigin = open ? detailOrigin : snapshot.detailOrigin;
   // Modal creates a portal asynchronously. A stateful ref observes its real DOM
   // arrival, rather than starting an exit clock before the surface exists.
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
@@ -63,8 +67,8 @@ export function MotionModal({ children, visible = true, motion = 'modal', onRequ
     surface.classList.toggle('is-closing', !open);
     root.classList.toggle('is-open', open);
     surface.inert = !open;
-    if (detail) {
-      detailMotion.current ??= createDetailMotion(surface, viewport, detailOrigin, () => dismiss.current?.());
+    if (presentedDetail) {
+      detailMotion.current ??= createDetailMotion(surface, viewport, presentedOrigin, () => dismiss.current?.());
       return detailMotion.current.setOpen(open, reduced, finish);
     }
     detailMotion.current?.suspend();
@@ -74,7 +78,7 @@ export function MotionModal({ children, visible = true, motion = 'modal', onRequ
       return;
     }
     return waitForMotion([surface, viewport], finish, motionMs(`--${motion}-close-dur`, 150));
-  }, [root, open, motion, reduced, releaseExit, detail, detailOrigin]);
+  }, [root, open, motion, reduced, releaseExit, presentedDetail, presentedOrigin]);
   return <Modal {...props} visible={open || mounted} animationType="none" onRequestClose={open ? onRequestClose : undefined}>
     <div ref={setRoot} className="motion-overlay" inert={!open} aria-hidden={!open} style={{ display: 'flex', flex: 1, minHeight: 0 }}>
       {open ? children : snapshot.children}
