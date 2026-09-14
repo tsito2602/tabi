@@ -1,8 +1,10 @@
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { MotionModal } from './motion-modal';
 import { useThemedStyles } from '@/theme/theme-provider';
 import { useModalViewport } from '@/hooks/use-modal-viewport';
 import { useFormKeyboard } from '@/hooks/use-form-keyboard';
 import { PropsWithChildren, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ToastHost } from './toast';
@@ -24,15 +26,10 @@ export function FormSheet({ presentation = 'form', visible, title, onClose, onSa
   const styles = useThemedStyles(createStyles);
 
   const viewport = useModalViewport(visible);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotion = useReducedMotion();
   const [confirmClose, setConfirmClose] = useState(false);
   const scroll = useRef<ScrollView>(null);
   useFormKeyboard(scroll, visible);
-  useEffect(() => {
-    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
-    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => listener.remove();
-  }, []);
   useEffect(() => { if (error) scroll.current?.scrollToEnd({ animated: !reduceMotion }); }, [error, reduceMotion]);
   const close = () => {
     if (!dirty) return onClose();
@@ -43,7 +40,7 @@ export function FormSheet({ presentation = 'form', visible, title, onClose, onSa
       { text: '変更を破棄', style: 'destructive', onPress: onClose },
     ]);
   };
-  return <><Modal visible={visible} transparent={Platform.OS === 'web'} presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'} animationType={reduceMotion ? 'none' : Platform.OS === 'web' ? 'fade' : 'slide'} onRequestClose={close}>
+  return <><MotionModal visible={visible} transparent={Platform.OS === 'web'} presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'} animationType={reduceMotion ? 'none' : Platform.OS === 'web' ? 'fade' : 'slide'} onRequestClose={close}>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} testID={presentation === 'detail' ? 'detail-modal-viewport' : 'form-modal-viewport'} style={[styles.overlay, viewport]}>
       {Platform.OS === 'web' ? <Pressable accessibilityLabel="シートを閉じる" onPress={close} style={StyleSheet.absoluteFill} /> : null}
       <SafeAreaView testID="form-sheet" edges={['top', 'bottom']} style={styles.sheet}>
@@ -61,17 +58,17 @@ export function FormSheet({ presentation = 'form', visible, title, onClose, onSa
       </SafeAreaView>
       <ToastHost />
     </KeyboardAvoidingView>
-  </Modal>
-    {Platform.OS === 'web' ? <Modal visible={visible && confirmClose} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={() => setConfirmClose(false)}>
+  </MotionModal>
+    {Platform.OS === 'web' ? <MotionModal visible={visible && confirmClose} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={() => setConfirmClose(false)}>
       <View testID="modal-viewport" style={[styles.overlay, viewport]}>
-        <View accessibilityViewIsModal style={styles.confirmCard}>
+        <View testID="discard-dialog" accessibilityViewIsModal style={styles.confirmCard}>
           <Text accessibilityRole="header" style={styles.confirmTitle}>変更を保存せずに閉じますか？</Text>
           <Text style={styles.confirmBody}>入力した内容は保存されません。</Text>
           <Pressable accessibilityRole="button" onPress={() => setConfirmClose(false)} style={styles.continueButton}><Text style={styles.continueText}>編集を続ける</Text></Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setConfirmClose(false); onClose(); }} style={styles.discardButton}><Text style={styles.discardText}>変更を破棄</Text></Pressable>
         </View>
       </View>
-    </Modal> : null}
+    </MotionModal> : null}
   </>;
 }
 

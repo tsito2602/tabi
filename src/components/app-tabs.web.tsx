@@ -1,3 +1,4 @@
+import { useTravel } from '@/data/travel-provider';
 import { useThemedStyles } from '@/theme/theme-provider';
 import {
   Tabs,
@@ -16,6 +17,7 @@ type TabButtonProps = TabTriggerSlotProps & {
 };
 
 export default function AppTabs() {
+  const { selectedTrip } = useTravel();
   const styles = useThemedStyles(createStyles);
 
   return (
@@ -26,13 +28,13 @@ export default function AppTabs() {
           <TabTrigger name="home" href="/" asChild>
             <TabButton icon="⌂">旅</TabButton>
           </TabTrigger>
-          <TabTrigger name="itinerary" href="/itinerary" asChild>
+          <TabTrigger name="itinerary" href={selectedTrip ? { pathname: '/trips/[tripId]/itinerary', params: { tripId: selectedTrip.id } } : '/'} asChild>
             <TabButton icon="≡">日程</TabButton>
           </TabTrigger>
-          <TabTrigger name="packing" href="/packing" asChild>
+          <TabTrigger name="packing" href={selectedTrip ? { pathname: '/trips/[tripId]/packing', params: { tripId: selectedTrip.id } } : '/'} asChild>
             <TabButton icon="✓">準備</TabButton>
           </TabTrigger>
-          <TabTrigger name="bookings" href="/bookings" asChild>
+          <TabTrigger name="bookings" href={selectedTrip ? { pathname: '/trips/[tripId]/bookings', params: { tripId: selectedTrip.id } } : '/'} asChild>
             <TabButton icon="⌁">予約</TabButton>
           </TabTrigger>
         </BottomTabList>

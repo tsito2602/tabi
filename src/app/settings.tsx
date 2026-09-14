@@ -1,3 +1,4 @@
+import { MotionPage } from '@/components/motion-page';
 import { ThemeSetting } from '@/components/theme-setting';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { router } from 'expo-router';
@@ -38,7 +39,7 @@ export default function SettingsScreen() {
     catch { setError('ログアウトできませんでした'); }
     finally { setBusy(false); }
   };
-  return <SafeAreaView style={styles.screen} edges={['top', 'bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  return <MotionPage><SafeAreaView style={styles.screen} edges={['top', 'bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="戻る" onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={styles.back}><Text style={{ fontSize: 32, color: palette.ocean }}>‹</Text></Pressable><Text accessibilityRole="header" style={styles.title}>設定</Text></View>
       <View style={styles.section}><Text style={styles.sectionTitle}>プロフィール</Text><View style={styles.card}>
@@ -61,7 +62,7 @@ export default function SettingsScreen() {
         <Pressable accessibilityRole="button" disabled={busy || (!isDemo && pendingCount > 0)} onPress={() => void logout()} style={[styles.row, (busy || (!isDemo && pendingCount > 0)) && { opacity: 0.45 }]}><SymbolView name={{ ios: 'rectangle.portrait.and.arrow.right', android: 'logout', web: 'logout' }} size={22} tintColor={palette.slate} /><Text style={styles.rowText}>{isDemo ? 'サンプルを終了' : 'ログアウト'}</Text></Pressable>
       </View></View>
       <View style={styles.appInfo}><BrandLogo style={{ width: 48, height: 48 }} contentFit="contain" /><Text style={styles.brand}>tabi</Text><Text style={styles.meta}>バージョン {packageInfo.version}</Text></View>
-    </ScrollView></KeyboardAvoidingView></SafeAreaView>;
+    </ScrollView></KeyboardAvoidingView></SafeAreaView></MotionPage>;
 }
 const createStyles = (palette: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.canvas }, content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 24, paddingBottom: 48, gap: 30 },

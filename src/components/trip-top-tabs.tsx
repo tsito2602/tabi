@@ -1,3 +1,6 @@
+import { MotionPresence } from '@/components/motion-presence';
+import { MotionTabs } from './motion-tabs';
+import { MotionModal } from './motion-modal';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { useModalViewport } from '@/hooks/use-modal-viewport';
 import { router, usePathname } from 'expo-router';
@@ -5,7 +8,7 @@ import { SymbolView } from 'expo-symbols';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { PageActionContext } from './page-action-context';
 import { useDesktop } from '@/hooks/use-desktop';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TripEditor } from './trip-editor';
 import { DeleteTripDialog } from './delete-trip-dialog';
@@ -67,14 +70,14 @@ export function TripTopTabs({ tripId }: { tripId: string }) {
       </View>
       {!managing ? <>
         <SyncStatus />
-        <ScrollView testID="trip-tabs" ref={tabScroll} horizontal showsHorizontalScrollIndicator={false} onLayout={(event) => setTabWidth(event.nativeEvent.layout.width)} onContentSizeChange={revealTab} style={styles.tabScroll} contentContainerStyle={styles.tabs} accessibilityRole="tablist">{tabs.map((tab) => {
+        <ScrollView testID="trip-tabs" ref={tabScroll} horizontal showsHorizontalScrollIndicator={false} onLayout={(event) => setTabWidth(event.nativeEvent.layout.width)} onContentSizeChange={revealTab} style={styles.tabScroll} contentContainerStyle={{ flexGrow: 1 }} accessibilityRole="tablist"><MotionTabs style={styles.tabs}>{tabs.map((tab) => {
           const selected = pathname.endsWith(`/${tab.key}`);
           return <Pressable accessibilityRole="tab" aria-selected={selected} accessibilityState={{ selected }} onLayout={(event) => { tabLayouts.current[tab.key] = event.nativeEvent.layout; if (selected) revealTab(); }} key={tab.key} onPress={() => router.replace({ pathname: `/trips/[tripId]/${tab.key}`, params: { tripId } })} style={[styles.tab, selected && styles.tabSelected]}><Text numberOfLines={1} style={[styles.tabText, selected && styles.tabTextSelected]}>{tab.label}</Text></Pressable>;
-        })}</ScrollView>
+        })}</MotionTabs></ScrollView>
       </> : null}
       {offline.busy ? <Text style={styles.progress}>{offline.progress}</Text> : null}
     </View>
-    <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)}>
+    <MotionModal motion="dropdown" visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)}>
       <View testID="modal-viewport" style={[styles.menuOverlay, viewport]}>
         <Pressable accessibilityLabel="メニューを閉じる" onPress={() => setMenu(false)} style={StyleSheet.absoluteFill} />
         <View testID="trip-menu-position" style={[styles.menuPosition, { top: insets.top + 58 }]} pointerEvents="box-none">
@@ -86,8 +89,8 @@ export function TripTopTabs({ tripId }: { tripId: string }) {
           </View>
         </View>
       </View>
-    </Modal>
-    {editing && selectedTrip ? <TripEditor trip={selectedTrip} onClose={() => setEditing(false)} /> : null}
+    </MotionModal>
+    <MotionPresence>{editing && selectedTrip ? <TripEditor trip={selectedTrip} onClose={() => setEditing(false)} /> : null}</MotionPresence>
     <DeleteTripDialog visible={confirmDelete} name={selectedTrip?.name ?? ''} busy={deleting} error={deleteError} onCancel={() => setConfirmDelete(false)} onConfirm={() => void remove()} />
   </View>;
 }

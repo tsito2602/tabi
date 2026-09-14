@@ -1,3 +1,5 @@
+import { MotionTabs } from '@/components/motion-tabs';
+import { MotionPresence } from '@/components/motion-presence';
 import { bookingDurationLabel } from '@/data/booking-duration';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { PageHeading } from '@/components/page-heading';
@@ -52,7 +54,7 @@ function TripBookingsScreen() {
     <SafeAreaView style={styles.safeArea} edges={[]}>
       <ScrollView testID="bookings-scroll" contentContainerStyle={[styles.content, { paddingTop: headerHeight + 20 }]} showsVerticalScrollIndicator={false}>
       <PageHeading title="予約" count={`${bookings.length}件`} />
-        {bookings.length ? <View testID="booking-filters" style={{ gap: 12 }}><TextInput accessibilityLabel="予約を検索" placeholder="予約名・空港・予約番号で検索" value={search} onChangeText={setSearch} placeholderTextColor={palette.placeholder} style={{ minHeight: 46, padding: 14, backgroundColor: palette.paper, borderRadius: 10, color: palette.ink, fontSize: 14 }} /><View accessibilityRole="tablist" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{[{ value: 'all', label: 'すべて' }, ...BOOKING_KINDS.filter((kind) => bookings.some((booking) => booking.kind === kind.value))].map((kind) => <Pressable accessibilityRole="tab" aria-selected={kindFilter === kind.value} key={kind.value} onPress={() => setKindFilter(kind.value)} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 9, backgroundColor: kindFilter === kind.value ? palette.sky : palette.paper }}><Text style={{ color: palette.ocean, fontSize: 12, fontWeight: '600' }}>{kind.label}</Text></Pressable>)}</View></View> : null}
+        {bookings.length ? <View testID="booking-filters" style={{ gap: 12 }}><TextInput accessibilityLabel="予約を検索" placeholder="予約名・空港・予約番号で検索" value={search} onChangeText={setSearch} placeholderTextColor={palette.placeholder} style={{ minHeight: 46, padding: 14, backgroundColor: palette.paper, borderRadius: 10, color: palette.ink, fontSize: 14 }} /><MotionTabs accessibilityRole="tablist" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{[{ value: 'all', label: 'すべて' }, ...BOOKING_KINDS.filter((kind) => bookings.some((booking) => booking.kind === kind.value))].map((kind) => <Pressable accessibilityRole="tab" aria-selected={kindFilter === kind.value} key={kind.value} onPress={() => setKindFilter(kind.value)} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 9, backgroundColor: kindFilter === kind.value ? palette.sky : palette.paper }}><Text style={{ color: palette.ocean, fontSize: 12, fontWeight: '600' }}>{kind.label}</Text></Pressable>)}</MotionTabs></View> : null}
         {bookings.length > 0 && !filtered.length ? <View style={styles.empty}><Text style={styles.emptyTitle}>該当する予約がありません</Text><Pressable accessibilityRole="button" onPress={() => { setSearch(''); setKindFilter('all'); }} style={{ padding: 18 }}><Text style={{ color: palette.ocean }}>絞り込みを解除</Text></Pressable></View> : null}
         {!selectedTrip ? (
           <View style={styles.empty}><Text style={styles.emptyTitle}>旅行を作成してください</Text><Text style={styles.emptyBody}>予約は選択中の旅行ごとに保存されます。</Text></View>
@@ -103,9 +105,9 @@ function TripBookingsScreen() {
       </ScrollView>
 
       {selectedTrip && canEdit ? <FloatingAddButton label="予約を追加する" onPress={openCreate} /> : null}
-      {connectionBookingId ? <FlightConnectionSheet bookingId={connectionBookingId} onClose={() => setConnectionBookingId(null)} /> : null}
+      <MotionPresence>{connectionBookingId ? <FlightConnectionSheet bookingId={connectionBookingId} onClose={() => setConnectionBookingId(null)} /> : null}</MotionPresence>
 
-      {openedBooking === 'new' || selectedBooking ? <BookingSheet key={openedBooking} booking={selectedBooking} onClose={() => setOpenedBooking(null)} /> : null}
+      <MotionPresence>{openedBooking === 'new' || selectedBooking ? <BookingSheet key={openedBooking} booking={selectedBooking} onClose={() => setOpenedBooking(null)} /> : null}</MotionPresence>
     </SafeAreaView>
   );
 }

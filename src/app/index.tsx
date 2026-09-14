@@ -1,3 +1,5 @@
+import { MotionPage } from '@/components/motion-page';
+import { MotionPresence } from '@/components/motion-presence';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { MemberAvatar } from '@/components/member-avatar';
 import { useDesktop } from '@/hooks/use-desktop';
@@ -38,7 +40,7 @@ export default function HomeScreen() {
   const today = localDate();
   const matchingTrips = trips.filter((trip) => `${trip.name} ${trip.destination}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const groups = [{ label: 'これからの旅行', trips: matchingTrips.filter((trip) => trip.endsOn >= today).sort((a,b) => a.startsOn.localeCompare(b.startsOn)) }, { label: 'これまでの旅行', trips: matchingTrips.filter((trip) => trip.endsOn < today).sort((a,b) => b.startsOn.localeCompare(a.startsOn)) }];
-  return <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+  return <MotionPage><SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
     <ScrollView testID="home-scroll" contentContainerStyle={styles.content} refreshControl={!isDemo ? <RefreshControl refreshing={syncing} onRefresh={() => void sync()} tintColor={palette.ocean} /> : undefined}>
       <View testID="home-header" style={styles.header}>
         <View><Text style={styles.eyebrow}>TABI</Text><Text accessibilityRole="header" style={styles.title}>旅行</Text></View>
@@ -58,8 +60,8 @@ export default function HomeScreen() {
         <View testID="trip-grid" style={{ gap: 18 }}>{group.trips.map((trip) => <Pressable key={trip.id} accessibilityRole="button" accessibilityLabel={trip.name} accessibilityHint="旅行のしおりを開きます" onPress={() => openTrip(trip.id)} style={({pressed}) => [pressed && styles.pressed]}><TripTicket trip={trip} /></Pressable>)}</View>
       </View>)}
     </ScrollView>
-    {creating ? <TripEditor onClose={() => setCreating(false)} onSaved={openTrip} /> : null}
-  </SafeAreaView>;
+    <MotionPresence>{creating ? <TripEditor onClose={() => setCreating(false)} onSaved={openTrip} /> : null}</MotionPresence>
+  </SafeAreaView></MotionPage>;
 }
 const createStyles = (palette: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.canvas }, content: { width: '100%', maxWidth: 800, alignSelf: 'center', padding: 20, paddingBottom: 32 },

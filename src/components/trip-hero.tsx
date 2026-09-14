@@ -1,3 +1,4 @@
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { createContext, useContext } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { TripCover } from './trip-cover';
@@ -8,14 +9,15 @@ export const useTripHero = () => useContext(TripHeroContext);
 
 // The photo belongs to the viewport; only the journal sheet scrolls over it.
 export function TripHero({ trip, height, scrollY }: { trip: Trip; height: number; scrollY: Animated.Value }) {
+  const reduced = useReducedMotion();
   const range = [0, height * 0.75];
   const scale = scrollY.interpolate({ inputRange: range, outputRange: [1.03, 1.12], extrapolate: 'clamp' });
   const blur = scrollY.interpolate({ inputRange: range, outputRange: [0, 9], extrapolate: 'clamp' });
   const opacity = scrollY.interpolate({ inputRange: [0, height * 0.4], outputRange: [1, 0], extrapolate: 'clamp' });
   return <View pointerEvents="none" testID="trip-hero" style={[styles.hero, { height }]}>
     {trip.coverImage
-      ? <Animated.Image testID="trip-hero-photo" source={{ uri: trip.coverImage }} resizeMode="cover" blurRadius={blur} style={[StyleSheet.absoluteFill, { transform: [{ scale }] }]} />
-      : <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale }] }]}><TripCover fill /></Animated.View>}
+      ? <Animated.Image testID="trip-hero-photo" source={{ uri: trip.coverImage }} resizeMode="cover" blurRadius={reduced ? 0 : blur} style={[StyleSheet.absoluteFill, { transform: [{ scale: reduced ? 1 : scale }] }]} />
+      : <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale: reduced ? 1 : scale }] }]}><TripCover fill /></Animated.View>}
     <View testID="trip-hero-shade" style={[StyleSheet.absoluteFill, styles.shade]} />
     <Animated.View style={[styles.caption, { opacity }]}>
       <Text style={styles.eyebrow}>TABI / TRAVEL JOURNAL</Text>

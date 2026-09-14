@@ -1,6 +1,7 @@
+import { MotionModal } from './motion-modal';
 import { useThemedStyles } from '@/theme/theme-provider';
 import { useModalViewport } from '@/hooks/use-modal-viewport';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { type Palette } from '@/constants/design';
 
 export function ConfirmationDialog({ visible, name, title, description, confirmLabel, busy, error, onCancel, onConfirm }: {
@@ -18,7 +19,7 @@ export function ConfirmationDialog({ visible, name, title, description, confirmL
 
   const viewport = useModalViewport(visible);
   const cancel = () => { if (!busy) onCancel(); };
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={cancel}>
+  return <MotionModal visible={visible} transparent animationType="fade" onRequestClose={cancel}>
     <View testID="modal-viewport" style={[styles.overlay, viewport]}>
       <Pressable style={StyleSheet.absoluteFill} onPress={cancel} accessibilityLabel="削除をキャンセル" />
       <View testID="delete-trip-dialog" accessibilityViewIsModal style={styles.card}>
@@ -32,7 +33,7 @@ export function ConfirmationDialog({ visible, name, title, description, confirmL
         </View>
       </View>
     </View>
-  </Modal>;
+  </MotionModal>;
 }
 
 export function DeleteTripDialog(props: Omit<Parameters<typeof ConfirmationDialog>[0], 'title' | 'description' | 'confirmLabel'>) {

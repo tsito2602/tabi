@@ -1,6 +1,8 @@
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { motionMs } from '@/utils/motion';
 import { useThemedStyles } from '@/theme/theme-provider';
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type Palette } from '@/constants/design';
 
@@ -8,6 +10,7 @@ const ToastContext = createContext<{ show: (message: string) => void; message: s
 export const useToast = () => useContext(ToastContext)!.show;
 
 export function ToastProvider({ children }: PropsWithChildren) {
+  const reduced = useReducedMotion();
   const [message, setMessage] = useState('');
   const [progress] = useState(() => new Animated.Value(0));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -16,11 +19,11 @@ export function ToastProvider({ children }: PropsWithChildren) {
     progress.stopAnimation();
     progress.setValue(0);
     setMessage(next);
-    Animated.timing(progress, { toValue: 1, duration: 180, useNativeDriver: Platform.OS !== 'web' }).start();
+    Animated.timing(progress, { toValue: 1, duration: reduced ? 0 : motionMs('--toast-open', 350), easing: Easing.bezier(0.22, 1, 0.36, 1), useNativeDriver: Platform.OS !== 'web' }).start();
     timer.current = setTimeout(() => {
-      Animated.timing(progress, { toValue: 0, duration: 180, useNativeDriver: Platform.OS !== 'web' }).start();
+      Animated.timing(progress, { toValue: 0, duration: reduced ? 0 : motionMs('--toast-close', 250), easing: Easing.bezier(0.22, 1, 0.36, 1), useNativeDriver: Platform.OS !== 'web' }).start();
     }, 3600);
-  }, [progress]);
+  }, [progress, reduced]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   return <ToastContext.Provider value={{ show, message, progress }}>{children}<ToastHost /></ToastContext.Provider>;
 }

@@ -1,3 +1,5 @@
+import { MotionTabs } from '@/components/motion-tabs';
+import { MotionPresence } from '@/components/motion-presence';
 import { bookingDurationLabel } from '@/data/booking-duration';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { useDesktop } from '@/hooks/use-desktop';
@@ -373,7 +375,7 @@ export default function ItineraryScreen() {
           <View style={styles.journalSheet}><View style={styles.content}><View style={styles.sheetIntro}><Text style={styles.journalLabel}>しおり</Text><Text style={styles.journalCount}>{itineraryDates.length}日間</Text></View></View></View>
         </View>
         <View testID="itinerary-day-bar" onLayout={(event) => setDayBarHeight(event.nativeEvent.layout.height)} style={styles.dayNavSticky}>
-          {selectedTrip && itineraryDates.length ? <ScrollView testID="itinerary-day-tabs" ref={dateScrollRef} onLayout={(event) => { dateViewport.current = event.nativeEvent.layout.width; }} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayTabs}>
+          {selectedTrip && itineraryDates.length ? <ScrollView testID="itinerary-day-tabs" ref={dateScrollRef} onLayout={(event) => { dateViewport.current = event.nativeEvent.layout.width; }} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}><MotionTabs style={styles.dayTabs}>
             {itineraryDates.map((date, index) => {
               const selected = date === visibleActiveDay;
               return <Pressable accessibilityRole="tab" aria-selected={selected} onLayout={(event) => { dateTabOffsets.current[date] = event.nativeEvent.layout; }} key={date} onPress={() => scrollToDay(date)} style={[styles.dayTab, selected && styles.dayTabSelected]}>
@@ -381,7 +383,7 @@ export default function ItineraryScreen() {
                 <Text style={[styles.dayTabDate, selected && styles.dayTabDateSelected]}>{shortDate(date)}</Text>
               </Pressable>;
             })}
-          </ScrollView> : null}
+          </MotionTabs></ScrollView> : null}
         </View>
         <View onLayout={(event) => { sheetOffset.current = event.nativeEvent.layout.y; }} style={[styles.journalBody, { minHeight: windowHeight - headerHeight }]}>
         <View style={[styles.content, { paddingBottom: Math.max(128, windowHeight - headerHeight - dayBarHeight - 100) }]}>
@@ -462,11 +464,11 @@ export default function ItineraryScreen() {
       </ScrollView>
 
       {selectedTrip && canEdit ? <FloatingAddButton label="予定を追加する" onPress={() => openAdd()} /> : null}
-      {connectionBookingId ? <FlightConnectionSheet bookingId={connectionBookingId} onClose={() => setConnectionBookingId(null)} /> : null}
+      <MotionPresence>{connectionBookingId ? <FlightConnectionSheet bookingId={connectionBookingId} onClose={() => setConnectionBookingId(null)} /> : null}</MotionPresence>
 
-      {viewingBooking ? <BookingSheet key={`${selectedTrip?.id}:${viewingBooking.id}`} booking={viewingBooking} onClose={() => setViewingBookingId(null)} /> : null}
+      <MotionPresence>{viewingBooking ? <BookingSheet key={`${selectedTrip?.id}:${viewingBooking.id}`} booking={viewingBooking} onClose={() => setViewingBookingId(null)} /> : null}</MotionPresence>
 
-      {isViewingItem && viewingPlace ? <PlaceSheet key={viewingPlace.id} place={viewingPlace} onClose={() => setViewingItemId(null)} onEditSchedule={() => openEdit(viewingItem!)} /> : null}
+      <MotionPresence>{isViewingItem && viewingPlace ? <PlaceSheet key={viewingPlace.id} place={viewingPlace} onClose={() => setViewingItemId(null)} onEditSchedule={() => openEdit(viewingItem!)} /> : null}</MotionPresence>
 
       <FormSheet visible={adding || (Boolean(viewingItem) && !viewingPlace)} presentation={isViewingItem ? 'detail' : 'form'} title={isViewingItem ? '予定の詳細' : editingPlace ? '予定を編集' : editingId ? '予定を編集' : '予定を追加'} onClose={() => { if (isViewingItem) setViewingItemId(null); else closeEditor(); }} onSave={canEdit ? isViewingItem ? () => openEdit(viewingItem!) : save : undefined} saveLabel={isViewingItem ? '編集' : '保存'} canSave={isViewingItem || moving || Boolean(title.trim())} dirty={!isViewingItem && JSON.stringify([day, time, title, note, planDetails]) !== initialDraft} error={isViewingItem ? undefined : formError}>
         {isViewingItem && viewingItem ? <View testID="itinerary-item-details" style={styles.planDetails}>

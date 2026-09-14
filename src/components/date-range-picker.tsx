@@ -1,8 +1,12 @@
+import { MotionPresence } from '@/components/motion-presence';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { motionMs } from '@/utils/motion';
+import { MotionModal } from './motion-modal';
 import { useThemedStyles } from '@/theme/theme-provider';
 import { useModalViewport } from '@/hooks/use-modal-viewport';
 import { useFormKeyboard } from '@/hooks/use-form-keyboard';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { mono, type Palette } from '@/constants/design';
@@ -56,7 +60,7 @@ export function DateRangePicker({ startDate, endDate, startTime = '', endTime = 
           </>
         )}
       </Pressable>
-      {open ? <DateRangeDialog startDate={startDate} endDate={endDate} startTime={startTime} endTime={endTime} startLabel={firstLabel} endLabel={lastLabel} label={label} mode={mode} showTime={showTime} close={() => setOpen(false)} onChange={onChange} /> : null}
+      <MotionPresence>{open ? <DateRangeDialog startDate={startDate} endDate={endDate} startTime={startTime} endTime={endTime} startLabel={firstLabel} endLabel={lastLabel} label={label} mode={mode} showTime={showTime} close={() => setOpen(false)} onChange={onChange} /> : null}</MotionPresence>
     </View>
   );
 }
@@ -125,7 +129,7 @@ function DateRangeDialog({ startDate, endDate, startTime = '', endTime = '', sta
         : '出発日を選択してください。';
 
   return (
-    <Modal transparent animationType="fade" visible onRequestClose={close}>
+    <MotionModal transparent animationType="fade" visible onRequestClose={close}>
       <SafeAreaView testID="modal-viewport" style={[styles.backdrop, viewport]}>
         <Pressable accessibilityLabel="日付選択を閉じる" onPress={close} style={StyleSheet.absoluteFill} />
         <View testID="picker-sheet" accessibilityViewIsModal style={styles.dialog}>
@@ -192,7 +196,7 @@ function DateRangeDialog({ startDate, endDate, startTime = '', endTime = '', sta
           </ScrollView>
         </View>
       </SafeAreaView>
-    </Modal>
+    </MotionModal>
   );
 }
 
@@ -251,6 +255,7 @@ function DateRangeHighlight({ anchorDate, days, gridWidth, markerRange, previewE
 }
 
 function RangeBand({ bounds, gridWidth, origin, row }: { bounds: { start: number; end: number } | null; gridWidth: number; origin: number; row: number }) {
+  const reduced = useReducedMotion();
   const styles = useThemedStyles(createStyles);
 
   const cell = gridWidth / 7;
@@ -259,15 +264,16 @@ function RangeBand({ bounds, gridWidth, origin, row }: { bounds: { start: number
   const [opacity] = useState(() => new Animated.Value(bounds && bounds.end > bounds.start ? 1 : 0));
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(left, { toValue: (bounds?.start ?? origin + 0.5) * cell, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
-      Animated.timing(width, { toValue: bounds ? Math.max(0, bounds.end - bounds.start) * cell : 0, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
-      Animated.timing(opacity, { toValue: bounds && bounds.end > bounds.start ? 1 : 0, duration: 160, useNativeDriver: false }),
+      Animated.timing(left, { toValue: (bounds?.start ?? origin + 0.5) * cell, duration: reduced ? 0 : motionMs('--tabs-dur', 250), easing: Easing.bezier(0.22, 1, 0.36, 1), useNativeDriver: false }),
+      Animated.timing(width, { toValue: bounds ? Math.max(0, bounds.end - bounds.start) * cell : 0, duration: reduced ? 0 : motionMs('--tabs-dur', 250), easing: Easing.bezier(0.22, 1, 0.36, 1), useNativeDriver: false }),
+      Animated.timing(opacity, { toValue: bounds && bounds.end > bounds.start ? 1 : 0, duration: reduced ? 0 : motionMs('--duration-quick', 150), useNativeDriver: false }),
     ]).start();
-  }, [bounds, cell, left, opacity, origin, width]);
+  }, [bounds, cell, left, opacity, origin, width, reduced]);
   return <Animated.View style={[styles.band, { left, top: WEEKDAY_HEIGHT + row * ROW_HEIGHT + 5 + (MARKER_SIZE - BAND_HEIGHT) / 2, width, opacity }]} />;
 }
 
 function DateMarker({ gridWidth, index, origin = -1, preview = false }: { gridWidth: number; index: number; origin?: number; preview?: boolean }) {
+  const reduced = useReducedMotion();
   const styles = useThemedStyles(createStyles);
 
   const [position] = useState(() => new Animated.ValueXY());
@@ -275,7 +281,7 @@ function DateMarker({ gridWidth, index, origin = -1, preview = false }: { gridWi
   const positioned = useRef(false);
   useEffect(() => {
     if (index < 0) {
-      Animated.timing(opacity, { toValue: 0, duration: 120, useNativeDriver: false }).start();
+      Animated.timing(opacity, { toValue: 0, duration: reduced ? 0 : motionMs('--duration-quick', 150), useNativeDriver: false }).start();
       return;
     }
     const target = { x: ((index % 7) + 0.5) * gridWidth / 7 - MARKER_SIZE / 2, y: WEEKDAY_HEIGHT + Math.floor(index / 7) * ROW_HEIGHT + 5 };
@@ -285,10 +291,10 @@ function DateMarker({ gridWidth, index, origin = -1, preview = false }: { gridWi
       positioned.current = true;
     }
     Animated.parallel([
-      Animated.spring(position, { toValue: target, damping: 22, stiffness: 230, mass: 0.75, useNativeDriver: false }),
-      Animated.timing(opacity, { toValue: 1, duration: 120, useNativeDriver: false }),
+      Animated.timing(position, { toValue: target, duration: reduced ? 0 : motionMs('--tabs-dur', 250), easing: Easing.bezier(0.22, 1, 0.36, 1), useNativeDriver: false }),
+      Animated.timing(opacity, { toValue: 1, duration: reduced ? 0 : motionMs('--duration-quick', 150), useNativeDriver: false }),
     ]).start();
-  }, [gridWidth, index, opacity, origin, position]);
+  }, [gridWidth, index, opacity, origin, position, reduced]);
   return <Animated.View style={[styles.marker, preview && styles.markerPreview, { left: position.x, top: position.y, opacity }]} />;
 }
 

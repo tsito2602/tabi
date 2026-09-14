@@ -1,3 +1,5 @@
+@import "./transitions.css";
+
 
 :root {
   color-scheme: light;
@@ -28,24 +30,17 @@ html, body { background: var(--canvas); overscroll-behavior-y: none; }
    than the visible viewport. Fill the current viewport on mobile/PWA too. */
 html body #root { height: 100dvh; min-height: 0; }
 body { -webkit-tap-highlight-color: transparent; }
-[role="button"], [role="tab"], button { transition: background-color 180ms ease, color 180ms ease, opacity 160ms ease, transform 220ms cubic-bezier(.2,.8,.2,1); touch-action: manipulation; }
-[role="button"]:active, button:active { transform: scale(.975); }
-input, textarea { transition: background-color 180ms ease, box-shadow 180ms ease; }
+[role="button"], [role="tab"], button { transition: background-color var(--duration-quick) var(--ease-smooth-out), color var(--duration-quick) var(--ease-smooth-out), opacity var(--duration-quick) var(--ease-smooth-out), transform var(--duration-fast) var(--ease-smooth-out); touch-action: manipulation; }
+[role="button"]:not([aria-disabled="true"]):active, button:not(:disabled):active { transform: scale(.975); }
+input, textarea { transition: background-color var(--duration-quick) var(--ease-smooth-out), box-shadow var(--duration-quick) var(--ease-smooth-out); }
 input:focus, textarea:focus { outline: none; box-shadow: 0 0 0 2px #92ADB766; }
 [data-testid="trip-header"] { backdrop-filter: blur(24px) saturate(150%); -webkit-backdrop-filter: blur(24px) saturate(150%); border-bottom: 1px solid var(--glass-line); }
 [data-testid="home-header"] { position: sticky; top: 0; z-index: 10; padding: 10px 0; background: var(--glass); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
-[data-testid="route-transition"] { animation: page-enter 260ms cubic-bezier(.2,.8,.2,1) both; }
-[data-testid="form-sheet"] { animation: sheet-enter 280ms cubic-bezier(.2,.8,.2,1) both; }
 [data-testid="sheet-header"] { background: var(--glass-strong); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
-[data-testid="place-card"] { animation: card-enter 240ms ease both; }
 [data-testid="ticket-photo-shade"] { background: linear-gradient(105deg, rgba(9,27,37,.72), rgba(9,27,37,.24) 70%, rgba(9,27,37,.4)); }
 [data-testid="trip-hero-shade"] { background: linear-gradient(180deg, rgba(9,27,37,.1) 30%, rgba(9,27,37,.12) 45%, rgba(9,27,37,.65)); }
 [data-testid="trip-hero-photo"] { will-change: transform, filter; }
 [data-testid="journal-sheet"] { box-shadow: 0 -14px 44px rgba(9,27,37,.12); }
-[data-testid="delete-trip-dialog"] { animation: card-enter 180ms ease both; box-shadow: 0 24px 80px rgba(9,27,37,.2); }
-@keyframes page-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes card-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes sheet-enter { from { opacity: 0; transform: translateY(22px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (max-width: 600px) {
   :is([data-testid="form-modal-viewport"], [data-testid="detail-modal-viewport"]) { padding: 0 !important; padding-top: max(12px, env(safe-area-inset-top)) !important; justify-content: flex-end !important; }
   [data-testid="form-sheet"] { border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; max-height: 100% !important; margin-top: auto; }
@@ -59,8 +54,6 @@ input:focus, textarea:focus { outline: none; box-shadow: 0 0 0 2px #92ADB766; }
   [data-testid="route-transition"], [data-testid="form-sheet"], [data-testid="place-card"] { animation: none; }
 }
 
-[data-testid="trip-menu"] { animation: menu-enter 170ms cubic-bezier(.2,.8,.2,1) both; transform-origin: top right; box-shadow: 0 12px 40px #12232d22; }
-@keyframes menu-enter { from { opacity: 0; transform: scale(.94) translateY(-4px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 
 .native-time-input { box-sizing: border-box; min-width: 132px; min-height: 48px; padding: 10px 12px; border: 0; border-radius: 10px; background: var(--mist); color: var(--ink); font: 600 20px var(--font-display); font-variant-numeric: tabular-nums; color-scheme: inherit; }
 .native-time-input:focus-visible { outline: 2px solid var(--ocean); outline-offset: 2px; }
@@ -71,7 +64,7 @@ a { -webkit-tap-highlight-color: transparent; }
 a:focus-visible, button:focus-visible, [role="button"]:focus-visible, [role="tab"]:focus-visible, [role="checkbox"]:focus-visible, select:focus-visible { outline: 2px solid var(--ocean); outline-offset: 3px; }
 .skip-link { position: fixed; top: -60px; left: 250px; z-index: 1000; padding: 12px; background: var(--paper); color: var(--ink); border-radius: 8px; }
 .skip-link:focus { top: 12px; }
-.file-drop { min-width: 0; border: 1.5px dashed var(--accent); border-radius: 14px; padding: 12px; background: var(--drop-fill); transition: background 160ms ease, border-color 160ms ease; }
+.file-drop { min-width: 0; border: 1.5px dashed var(--accent); border-radius: 14px; padding: 12px; background: var(--drop-fill); transition: background var(--duration-quick) var(--ease-smooth-out), border-color var(--duration-quick) var(--ease-smooth-out); }
 .file-drop.is-dragging { background: var(--sky); border-color: var(--ocean); outline: 3px solid #92ADB744; }
 .file-drop.is-disabled { opacity: .6; }
 .file-drop-button { width: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; min-height: 150px; padding: 18px 12px; border: 0; border-radius: 9px; color: var(--ocean); background: transparent; font: 13px var(--font-display); cursor: pointer; }
@@ -129,4 +122,73 @@ a:focus-visible, button:focus-visible, [role="button"]:focus-visible, [role="tab
 }
 @media (min-width: 1600px) {
   [data-testid="place-grid"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Tabi bindings for the unmodified Transitions.dev recipes in transitions.css.
+   Existing layout, palette and touch targets remain owned by each component. */
+:root {
+  --modal-open-dur: var(--duration-fast);
+  --modal-close-dur: var(--duration-quick);
+  --modal-scale: var(--scale-large);
+  --modal-scale-close: var(--scale-large);
+  --modal-ease: var(--ease-smooth-out);
+  --dropdown-open-dur: var(--duration-fast);
+  --dropdown-close-dur: var(--duration-quick);
+  --dropdown-pre-scale: var(--scale-medium);
+  --dropdown-closing-scale: var(--scale-tiny);
+  --dropdown-ease: var(--ease-smooth-out);
+  --page-slide-dur: var(--duration-fast);
+  --page-fade-dur: var(--duration-fast);
+  --page-slide-distance: var(--distance-base);
+  --page-blur: var(--blur-medium);
+  --page-slide-ease: var(--ease-smooth-out);
+  --page-fade-ease: var(--ease-smooth-out);
+  --icon-swap-dur: var(--duration-fast);
+  --icon-swap-blur: var(--blur-small);
+  --icon-swap-ease: var(--ease-in-out);
+  --tabs-dur: var(--duration-fast);
+  --tabs-ease: var(--ease-smooth-out);
+  --tabs-pill-bg: var(--sky);
+  --toast-ease: var(--ease-smooth-out);
+  --check-box: var(--duration-quick);
+  --check-uncheck: var(--duration-quick);
+  --check-ease: var(--ease-smooth-out);
+}
+.motion-page { flex: 1; min-height: 0; display: flex; }
+.motion-page > .t-page { display: flex; flex-direction: column; min-height: 0; }
+.motion-overlay { opacity: 0; transition: opacity var(--modal-close-dur) var(--modal-ease); }
+.motion-overlay.is-open { opacity: 1; transition-duration: var(--modal-open-dur); }
+[data-testid="trip-menu"] { box-shadow: 0 12px 40px #12232d22; }
+[data-testid="delete-trip-dialog"] { box-shadow: 0 24px 80px rgba(9,27,37,.2); }
+/* Sheets enter from their screen edge; centred dialogs use the modal recipe. */
+@media (max-width: 600px) {
+  :is([data-testid="form-sheet"], [data-testid="picker-sheet"]).t-modal { transform-origin: bottom center; transform: translateY(var(--distance-medium)) scale(var(--modal-scale)); }
+  :is([data-testid="form-sheet"], [data-testid="picker-sheet"]).t-modal.is-open { transform: translateY(0) scale(1); }
+  :is([data-testid="form-sheet"], [data-testid="picker-sheet"]).t-modal.is-closing { transform: translateY(var(--distance-base)) scale(var(--modal-scale-close)); }
+}
+@media (min-width: 1024px) {
+  [data-testid="detail-modal-viewport"] .t-modal { transform-origin: right center; transform: translateX(var(--distance-medium)); }
+  [data-testid="detail-modal-viewport"] .t-modal.is-open { transform: translateX(0); }
+  [data-testid="detail-modal-viewport"] .t-modal.is-closing { transform: translateX(var(--distance-base)); }
+}
+.motion-tabs { position: relative; isolation: isolate; }
+.motion-tabs > .t-tabs-pill { top: 0; }
+.motion-tabs > [role="tab"] { z-index: 1; background-color: transparent !important; }
+.motion-copy { border: 0; min-width: 76px; min-height: 44px; padding: 0 12px; border-radius: 12px; background: var(--sky); color: var(--ocean); font: 700 12px var(--font-display); cursor: pointer; }
+.motion-copy .t-icon-swap { align-items: center; justify-items: center; }
+.motion-toast-position { position: absolute; left: 24px; right: 24px; display: flex; justify-content: center; z-index: 1000; pointer-events: none; }
+.motion-toast { max-width: 440px; border-radius: 16px; padding: 14px 20px; background: var(--ink); color: var(--canvas); font: 13px/20px var(--font-display); text-align: center; }
+.motion-accordion-head { display: flex; align-items: center; gap: 12px; background: transparent; border: 0; padding: 8px; color: var(--ink); font: inherit; cursor: pointer; }
+.motion-accordion-content { margin: 12px 0 0 24px; padding: 16px; border-radius: 16px; background: var(--mist); }
+:is([role="radio"], [role="checkbox"], [role="tab"], select) { transition: background-color var(--duration-quick) var(--ease-smooth-out), border-color var(--duration-quick) var(--ease-smooth-out), color var(--duration-quick) var(--ease-smooth-out), opacity var(--duration-quick) var(--ease-smooth-out); }
+[role="alert"] { animation: motion-error-in var(--duration-quick) var(--ease-smooth-out); }
+@keyframes motion-error-in { from { opacity: 0; } to { opacity: 1; } }
+@media (hover: hover) and (pointer: fine) {
+  [data-testid="trip-grid"] > [role="button"]:not([aria-disabled="true"]):hover { transform: translateY(-2px); }
+}
+/* Final guard covers base controls, recipe adapters and legacy keyframes too. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  [role="button"]:active, button:active, [data-testid="trip-grid"] > [role="button"]:hover { transform: none !important; }
+  .motion-page > .t-page { filter: none; }
 }

@@ -1,10 +1,13 @@
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { motionMs } from '@/utils/motion';
 import { useThemedStyles } from '@/theme/theme-provider';
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text } from 'react-native';
 import { type Palette } from '@/constants/design';
 
 export function CopyButton({ value, label = 'コピー' }: { value: string; label?: string }) {
+  const reduced = useReducedMotion();
   const styles = useThemedStyles(createStyles);
 
   const [state, setState] = useState<'idle' | 'copied' | 'error'>('idle');
@@ -20,7 +23,7 @@ export function CopyButton({ value, label = 'コピー' }: { value: string; labe
     finally { busy.current = false; }
     if (timer.current) clearTimeout(timer.current);
     motion.setValue(0);
-    Animated.spring(motion, { toValue: 1, damping: 12, stiffness: 220, useNativeDriver: Platform.OS !== 'web' }).start();
+    Animated.timing(motion, { toValue: 1, duration: reduced ? 0 : motionMs('--icon-swap-dur', 250), easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }).start();
     timer.current = setTimeout(() => setState('idle'), 2000);
   };
   return <Pressable accessibilityRole="button" accessibilityLabel={state === 'copied' ? 'コピーしました' : state === 'error' ? 'コピーできませんでした。長押しでコピーしてください' : label} onPress={() => void copy()} style={styles.button}>
