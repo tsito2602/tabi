@@ -23,6 +23,7 @@ export function TripTicket({ trip }: { trip: Trip }) {
 
   return (
     <View nativeID={`trip-ticket-${trip.id}`} testID="trip-ticket" style={styles.ticket} accessibilityLabel={`${trip.name}、${trip.startsOn}から${trip.endsOn}まで`}>
+      <View testID="trip-ticket-face" style={styles.face}>
       <View style={styles.main}>
         <View pointerEvents="none" testID="trip-ticket-cover" style={[StyleSheet.absoluteFill, styles.cover]}>{photo ? <><Image source={{ uri: trip.coverImage }} resizeMode="cover" style={StyleSheet.absoluteFill} /><View testID="ticket-photo-shade" style={[StyleSheet.absoluteFill, styles.photoShade]} /></> : null}</View>
         <View style={styles.issuerRow}>
@@ -63,12 +64,14 @@ export function TripTicket({ trip }: { trip: Trip }) {
 
       <View style={[styles.notch, styles.notchTop]} />
       <View style={[styles.notch, styles.notchBottom]} />
+      </View>
     </View>
   );
 }
 
 const createStyles = (palette: Palette) => StyleSheet.create({
   ticket: { minHeight: 206, flexDirection: 'row', overflow: 'hidden', position: 'relative', borderRadius: 24, backgroundColor: palette.paper },
+  face: { flex: 1, minWidth: 0, flexDirection: 'row', borderRadius: 24, overflow: 'hidden' },
   cover: { backgroundColor: palette.paper, borderTopLeftRadius: 24, borderBottomLeftRadius: 24, overflow: 'hidden' },
   photoShade: { backgroundColor: 'rgba(13,32,43,0.52)' },
   photoText: { color: '#FFFFFF' },

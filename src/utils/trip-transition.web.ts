@@ -68,7 +68,13 @@ export function createTripTransitionController(doc: Document) {
     if (!root) return;
     name(op, root.querySelector(isTicket ? '[data-testid="trip-ticket-cover"]' : '[data-testid="trip-hero-cover"]'), 'tabi-trip-cover');
     name(op, root.querySelector(isTicket ? '[data-testid="trip-ticket-title"]' : '[data-testid="trip-name"]'), 'tabi-trip-title');
-    if (!isTicket) {
+    // Foreground must not stay in root's snapshot below the named photo.
+    // The transparent ticket face includes its stub/notches, but its named
+    // cover and title are extracted into their own snapshots.
+    if (isTicket) {
+      name(op, root.querySelector('[data-testid="trip-ticket-face"]'), 'tabi-trip-ticket-face');
+    } else {
+      name(op, root.querySelector('[data-testid="trip-hero-caption"]'), 'tabi-trip-caption');
       name(op, root.querySelector('[data-testid="trip-header"]'), 'tabi-trip-header');
       name(op, root.querySelector('[data-testid="itinerary-scroll"]'), 'tabi-trip-paper');
     }

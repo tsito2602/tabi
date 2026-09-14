@@ -21,7 +21,7 @@ export function TripHero({ trip, height, scrollY }: { trip: Trip; height: number
       : <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale: reduced ? 1 : scale }] }]}><TripCover fill /></Animated.View>}
     <View testID="trip-hero-shade" style={[StyleSheet.absoluteFill, styles.shade]} />
     </View>
-    <Animated.View style={[styles.caption, { opacity }]}>
+    <Animated.View testID="trip-hero-caption" style={[styles.caption, { opacity }]}>
       <Text style={styles.eyebrow}>TABI / TRAVEL JOURNAL</Text>
       <Text numberOfLines={2} style={styles.destination}>{trip.destination || trip.name}</Text>
       <View style={styles.captionBottom}><Text style={styles.dates}>{trip.startsOn.replaceAll('-', '.')} — {trip.endsOn.replaceAll('-', '.')}</Text><Text style={styles.arrow}>↓</Text></View>

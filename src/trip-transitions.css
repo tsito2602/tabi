@@ -1,7 +1,7 @@
 /* Only the chosen ticket participates; names are assigned for one navigation.
    The sidebar and the router remain live, with no duplicate screens or locks. */
-html[data-trip-transition] { --trip-journey-duration: 420ms; }
-html[data-trip-transition="close"] { --trip-journey-duration: 340ms; }
+html[data-trip-transition] { --trip-journey-duration: 420ms; --trip-reveal-duration: 280ms; --trip-reveal-delay: 90ms; }
+html[data-trip-transition="close"] { --trip-journey-duration: 340ms; --trip-reveal-duration: 260ms; --trip-reveal-delay: 50ms; }
 html[data-trip-transition] .motion-page-content,
 .motion-page-content[data-trip-journey-page] {
   animation: none !important;
@@ -14,11 +14,15 @@ html[data-trip-transition]::view-transition-group(tabi-trip-title) {
   animation-duration: var(--trip-journey-duration);
   animation-timing-function: cubic-bezier(.22, 1, .36, 1);
 }
-/* Keep the cover behind the rounded journal throughout the shared transition. */
+/* Named photos are above root's snapshot. Capture their foreground separately
+   or its text/stub stays hidden until the photo snapshot disappears. */
+html[data-trip-transition]::view-transition-group(root) { z-index: 0; }
 html[data-trip-transition]::view-transition-group(tabi-trip-cover) { z-index: 1; }
-html[data-trip-transition]::view-transition-group(tabi-trip-title) { z-index: 5; }
-html[data-trip-transition]::view-transition-group(tabi-trip-header) { z-index: 4; }
 html[data-trip-transition]::view-transition-group(tabi-trip-paper) { z-index: 2; }
+html[data-trip-transition]::view-transition-group(tabi-trip-ticket-face),
+html[data-trip-transition]::view-transition-group(tabi-trip-caption) { z-index: 3; }
+html[data-trip-transition]::view-transition-group(tabi-trip-header) { z-index: 4; }
+html[data-trip-transition]::view-transition-group(tabi-trip-title) { z-index: 5; }
 html[data-trip-transition]::view-transition-image-pair(tabi-trip-cover) { overflow: clip; }
 html[data-trip-transition="open"]::view-transition-image-pair(tabi-trip-cover) {
   animation: trip-cover-open var(--trip-journey-duration) cubic-bezier(.22, 1, .36, 1) both;
@@ -26,14 +30,25 @@ html[data-trip-transition="open"]::view-transition-image-pair(tabi-trip-cover) {
 html[data-trip-transition="close"]::view-transition-image-pair(tabi-trip-cover) {
   animation: trip-cover-close var(--trip-journey-duration) cubic-bezier(.22, 1, .36, 1) both;
 }
-html[data-trip-transition]::view-transition-old(root) { animation: trip-page-out 100ms ease-out both; }
-html[data-trip-transition="open"]::view-transition-new(root) { animation: trip-list-in 180ms ease-out both; }
+html[data-trip-transition]::view-transition-old(root),
+html[data-trip-transition]::view-transition-old(tabi-trip-ticket-face),
+html[data-trip-transition]::view-transition-old(tabi-trip-caption),
+html[data-trip-transition]::view-transition-old(tabi-trip-paper),
+html[data-trip-transition]::view-transition-old(tabi-trip-header) {
+  animation: trip-page-out 120ms ease-out both;
+  mix-blend-mode: normal;
+}
+/* The reveal overlaps the shared movement and reaches full opacity before the
+   handoff to live DOM, instead of starting another animation after cleanup. */
+html[data-trip-transition]::view-transition-new(root),
+html[data-trip-transition]::view-transition-new(tabi-trip-ticket-face),
+html[data-trip-transition]::view-transition-new(tabi-trip-caption),
+html[data-trip-transition]::view-transition-new(tabi-trip-header) {
+  animation: trip-list-in var(--trip-reveal-duration) var(--trip-reveal-delay) ease-out both;
+  mix-blend-mode: normal;
+}
 /* The paper moves into place, but never fades through the photo underneath. */
 html[data-trip-transition]::view-transition-new(tabi-trip-paper) { opacity: 1; animation: trip-page-in 240ms cubic-bezier(.22, 1, .36, 1) both; }
-html[data-trip-transition]::view-transition-old(tabi-trip-paper),
-html[data-trip-transition]::view-transition-old(tabi-trip-header) { animation: trip-page-out 100ms ease-out both; }
-html[data-trip-transition]::view-transition-new(tabi-trip-header) { animation: trip-list-in 180ms 70ms ease-out both; }
-html[data-trip-transition="close"]::view-transition-new(root) { animation: trip-list-in 180ms ease-out both; }
 html[data-trip-transition]::view-transition-old(tabi-trip-title),
 html[data-trip-transition]::view-transition-new(tabi-trip-title) { mix-blend-mode: normal; }
 @keyframes trip-page-out { to { opacity: 0; } }

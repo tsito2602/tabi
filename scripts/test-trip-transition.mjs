@@ -195,3 +195,40 @@ for (const options of [{ reduced: true }, { supported: false }]) {
   f.close();
 }
 console.log('Trip transitions: shared elements, return position/focus, search, reduced motion, unsupported/failed snapshots, rapid navigation, history, timeout and cleanup passed.');
+
+// Foreground snapshots participate in both directions, remain restricted to
+// the selected ticket, and are removed on completion or interruption.
+{
+  const f = setup();
+  const foregroundHome = () => {
+    f.home();
+    for (const id of ['a', 'b']) {
+      const ticket = f.document.getElementById(`trip-ticket-${id}`);
+      const face = f.document.createElement('div');
+      face.dataset.testid = 'trip-ticket-face';
+      face.append(...ticket.childNodes); ticket.append(face);
+    }
+  };
+  const foregroundDetail = () => {
+    f.detail();
+    const caption = f.document.createElement('div');
+    caption.dataset.testid = 'trip-hero-caption';
+    caption.textContent = 'Vienna / travel dates';
+    f.document.querySelector('main').append(caption);
+  };
+  foregroundHome();
+  f.controller.run('open', 'a', foregroundDetail); await tick();
+  assert(f.transitions[0].old.some(([element, name]) => name === 'tabi-trip-ticket-face' && element.closest('#trip-ticket-a')));
+  assert(f.transitions[0].old.every(([element]) => element.closest('#trip-ticket-a')), 'unselected ticket foreground remains in root');
+  assert(f.transitions[0].new.some(([, name]) => name === 'tabi-trip-caption'));
+  f.transitions[0].finish(); await tick();
+  assert.equal(f.named().length, 0);
+  f.controller.run('close', 'a', foregroundHome); await tick();
+  assert(f.transitions[1].old.some(([, name]) => name === 'tabi-trip-caption'));
+  assert(f.transitions[1].new.some(([, name]) => name === 'tabi-trip-ticket-face'));
+  f.document.dispatchEvent(new f.dom.window.Event('pointerdown')); await tick();
+  assert.equal(f.transitions[1].skipped, true);
+  assert.equal(f.named().length, 0, 'interrupted foreground must not retain a snapshot name');
+  f.close();
+}
+console.log('Trip foreground: open/close capture, selected ticket isolation and interruption cleanup passed.');
