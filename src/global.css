@@ -172,6 +172,7 @@ a:focus-visible, button:focus-visible, [role="button"]:focus-visible, [role="tab
   [data-testid="detail-modal-viewport"] .t-modal.is-closing { transform: translateX(var(--distance-base)); }
 }
 .motion-tabs { position: relative; isolation: isolate; }
+[data-testid="itinerary-day-tabs"] .motion-tabs, [data-testid="preparation-tabs"] { --tabs-pill-bg: var(--ocean); }
 .motion-tabs > .t-tabs-pill { top: 0; }
 .motion-tabs > [role="tab"] { z-index: 1; background-color: transparent !important; }
 .motion-copy { border: 0; min-width: 76px; min-height: 44px; padding: 0 12px; border-radius: 12px; background: var(--sky); color: var(--ocean); font: 700 12px var(--font-display); cursor: pointer; }
