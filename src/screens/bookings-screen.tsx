@@ -37,6 +37,7 @@ function TripBookingsScreen() {
   const { canEdit, bookings, documentsByBooking, selectedTrip } = useTravel();
   const [openedBooking, setOpenedBooking] = useState<string | 'new' | null>(null);
   const [connectionBookingId, setConnectionBookingId] = useState<string | null>(null);
+  const [connectionOrigin, setConnectionOrigin] = useState<DetailOrigin>();
   const connections = useMemo(() => new Map(findFlightConnections(bookings).map((connection) => [connection.arrivalBookingId, connection])), [bookings]);
   const filtered = bookings.filter((booking) => (kindFilter === 'all' || booking.kind === kindFilter) && `${booking.title} ${booking.detail} ${booking.origin} ${booking.destination} ${booking.originCode} ${booking.destinationCode} ${booking.confirmationCode}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const openCreate = () => { setDetailOrigin(undefined); setOpenedBooking('new'); };
@@ -98,7 +99,7 @@ function TripBookingsScreen() {
                   <View style={[styles.notch, styles.notchTop]} />
                   <View style={[styles.notch, styles.notchBottom]} />
                 </Pressable>
-                {booking.kind === 'flight' && (connection || (canEdit && hasLikelyFlightConnection(booking, bookings))) ? <FlightConnectionLink disabled={!canEdit} booking={booking} connection={connection} nextFlight={bookings.find((flight) => flight.id === connection?.departureBookingId)} onPress={() => setConnectionBookingId(booking.id)} /> : null}
+                {booking.kind === 'flight' && (connection || (canEdit && hasLikelyFlightConnection(booking, bookings))) ? <FlightConnectionLink disabled={!canEdit} booking={booking} connection={connection} nextFlight={bookings.find((flight) => flight.id === connection?.departureBookingId)} onPress={(event) => { setConnectionOrigin(captureDetailOrigin(event)); setConnectionBookingId(booking.id); }} /> : null}
                 </View>
               );
             })}
@@ -107,7 +108,7 @@ function TripBookingsScreen() {
       </ScrollView>
 
       {selectedTrip && canEdit ? <FloatingAddButton label="予約を追加する" onPress={openCreate} /> : null}
-      <MotionPresence>{connectionBookingId ? <FlightConnectionSheet bookingId={connectionBookingId} onClose={() => setConnectionBookingId(null)} /> : null}</MotionPresence>
+      <MotionPresence>{connectionBookingId ? <FlightConnectionSheet detailOrigin={connectionOrigin} bookingId={connectionBookingId} onClose={() => setConnectionBookingId(null)} /> : null}</MotionPresence>
 
       <MotionPresence>{openedBooking === 'new' || selectedBooking ? <BookingSheet detailOrigin={detailOrigin} key={openedBooking} booking={selectedBooking} onClose={() => setOpenedBooking(null)} /> : null}</MotionPresence>
     </SafeAreaView>

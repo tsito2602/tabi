@@ -1,6 +1,6 @@
 /* The real dialog stays opaque; only its contents fade. No document snapshot
    or second live screen is needed for an origin-to-detail transition. */
-.motion-overlay[data-presentation="detail"] [data-detail-motion] {
+.motion-overlay[data-presentation] [data-motion-surface][data-detail-motion]:is(.is-open, .is-closing) {
   opacity: 1;
   transform: none;
   /* Keep an interpolable outline after entrance cleanup. `none` would make

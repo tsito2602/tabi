@@ -18,28 +18,32 @@ export function detailPose(from: DetailRect, to: DetailRect, radius: number) {
   return { transform: `translate3d(${from.left + from.width / 2 - to.left - to.width / 2}px, ${from.top + from.height / 2 - to.top - to.height / 2}px, 0px)${scale > 1 ? ` scale(${scale})` : ''}`, clipPath: `inset(${y}px ${x}px round ${radius}px)`, opacity: '1' };
 }
 
-// Animate semantic sections, not every nested label. Both an ancestor and its
-// descendants must never fade, translate or accumulate delays together.
+export type SheetMotionKind = 'detail' | 'form' | 'picker';
+
+// One level of meaningful sections; never stagger calendar cells or both a
+// field wrapper and its children. Form controls keep their original DOM nodes.
 export function detailContentBlocks(content: HTMLElement): HTMLElement[] {
+  const scroll = content.querySelector<HTMLElement>('[data-testid="form-sheet-scroll"], [data-testid="sheet-content-scroll"]');
   const header = content.querySelector<HTMLElement>('[data-testid="sheet-header"]');
-  const scroll = content.querySelector<HTMLElement>('[data-testid="form-sheet-scroll"]');
-  const container = scroll?.firstElementChild;
+  const footer = content.querySelector<HTMLElement>('[data-testid="sheet-footer"]');
   const wrappers = '[data-testid="place-details"], [data-testid="itinerary-item-details"], [data-testid="booking-details-summary"]';
-  const sections = Array.from(container?.children ?? []).flatMap((element) =>
+  const sections = Array.from(scroll ? scroll.firstElementChild?.children ?? [] : content.children).flatMap((element) =>
     element.matches(wrappers) ? Array.from(element.children) : [element]);
   const win = content.ownerDocument.defaultView!;
-  const blocks = [header, ...sections].filter((element): element is HTMLElement =>
+  const blocks = [...new Set([scroll && header && !scroll.contains(header) ? header : null, ...sections, scroll && footer && !scroll.contains(footer) ? footer : null])].filter((element): element is HTMLElement =>
     element instanceof win.HTMLElement && element.getClientRects().length > 0
-    && win.getComputedStyle(element).display !== 'none');
+    && win.getComputedStyle(element).display !== 'none' && element.dataset.testid !== 'detail-dismiss-handle');
   return blocks.length ? blocks : [content];
 }
 
 /** Owns one mounted detail surface. CSS still owns layout and the backdrop. */
 export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, origin: DetailOrigin | undefined, requestClose: () => void) {
   const doc = surface.ownerDocument, win = doc.defaultView!;
-  const content = surface.querySelector<HTMLElement>('[data-testid="form-sheet-fill"]');
+  const content = surface.querySelector<HTMLElement>('[data-testid="form-sheet-fill"]') ?? surface;
   let animations: Animation[] = [];
   let generation = 0, opened = false, isOpen = false, disposed = false;
+  let lastKind: SheetMotionKind = 'detail';
+  const restingOpacity = new WeakMap<HTMLElement, string>();
   let closingDone: (() => void) | undefined;
   let handle: HTMLElement | null = null;
   let drag: { id: number; startY: number; y: number; lastY: number; lastAt: number; velocity: number } | undefined;
@@ -97,7 +101,7 @@ export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, 
     const complete = closingDone; closingDone = undefined;
     if (!isOpen) { complete?.(); returnFocus(); }
   };
-  const animate = (open: boolean, reduced: boolean, done: () => void) => {
+  const animate = (open: boolean, reduced: boolean, done: () => void, kind: SheetMotionKind) => {
     const current = win.getComputedStyle(surface);
     const start = { transform: current.transform, clipPath: current.clipPath, opacity: current.opacity };
     const blocks = content ? detailContentBlocks(content) : [];
@@ -108,19 +112,24 @@ export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, 
       return { opacity: css.opacity, transform: css.transform };
     });
     const first = !opened;
+    const changedKind = opened && kind !== lastKind;
+    lastKind = kind;
+    blocks.forEach((element, index) => { if (!restingOpacity.has(element)) restingOpacity.set(element, states[index].opacity || '1'); });
     isOpen = open;
     closingDone = open ? undefined : done;
     surface.dataset.detailMotion = '';
+    surface.dataset.sheetMotionKind = kind;
     cancel(); clearDrag(); resetStyles();
     if (reduced || typeof surface.animate !== 'function') { opened = true; settle(); return () => {}; }
-    if (open && opened && start.transform === 'none' && start.opacity === '1') { settle(); return () => {}; }
+    if (open && opened && !changedKind && start.transform === 'none' && start.opacity === '1') { settle(); return () => {}; }
     opened = true;
     const live = source();
     const target = detailRect(surface);
     const expanded = { ...normal, clipPath: `inset(0px round ${win.getComputedStyle(surface).borderRadius || '24px'})` };
     const pose = live && origin ? detailPose(first ? origin.rect : live.rect, target, origin.radius) : { ...normal, transform: 'translate3d(0px, 16px, 0px)', opacity: '0' };
     const returning = !open && Boolean(live && origin);
-    const duration = open ? 280 : returning ? 420 : 240;
+    const duration = open ? changedKind ? 180 : 280 : returning ? 420 : 240;
+    const utility = kind !== 'detail';
     const token = generation;
     let valid = true;
     try {
@@ -140,19 +149,21 @@ export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, 
       }
       // Compress long sequences evenly instead of clamping the item index:
       // later items must still enter one by one, never all on the same frame.
-      const stagger = Math.min(revealStagger, maxRevealSpread / Math.max(1, blocks.length - 1));
+      const stagger = Math.min(utility ? 55 : revealStagger, (utility ? 280 : maxRevealSpread) / Math.max(1, blocks.length - 1));
       blocks.forEach((element, index) => {
-        const from = open && first ? { opacity: '0', transform: 'translate3d(0px, 20px, 0px)' } : states[index];
+        const from = open && (first || changedKind) ? { opacity: '0', transform: `translate3d(0px, ${utility ? 16 : 20}px, 0px)` } : states[index];
         // Separate properties share a start time, not an ancestor animation.
         // Closing cancels both tracks and samples their current combined pose.
         if (open) {
-          const delay = first ? duration + index * stagger : 0;
-          play(element, [{ transform: from.transform }, { transform: normal.transform }], revealDuration, delay, revealEase);
-          play(element, [{ opacity: from.opacity }, { opacity: '1' }], revealFadeDuration, delay, revealFadeEase);
+          const delay = first ? duration + index * stagger : changedKind ? index * Math.min(stagger, 35) : 0;
+          play(element, [{ transform: from.transform }, { transform: normal.transform }], utility ? 560 : revealDuration, delay, revealEase);
+          play(element, [{ opacity: from.opacity }, { opacity: restingOpacity.get(element) ?? '1' }], utility ? 360 : revealFadeDuration, delay, revealFadeEase);
         } else {
           play(element, [from, { opacity: '0', transform: 'translate3d(0px, 8px, 0px)' }], 160, 0, returnEase);
         }
       });
+      // Never make a focused input invisible while the user starts typing.
+      if (open && surface.contains(doc.activeElement) && doc.activeElement?.matches('input, textarea, [contenteditable="true"]')) { settle(); return () => {}; }
       const work = [...animations];
       void Promise.allSettled(work.map((animation) => animation.finished)).then(() => {
         if (!valid || disposed || token !== generation) return;
@@ -216,15 +227,19 @@ export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, 
     handle?.addEventListener('lostpointercapture', cancelled);
   };
   const resize = () => settle();
+  const focusin = (event: FocusEvent) => {
+    if (isOpen && animations.length && event.target instanceof win.HTMLElement && event.target.matches('input, textarea, [contenteditable="true"]')) settle();
+  };
   const keydown = (event: KeyboardEvent) => {
     if (event.key === 'Tab' && isOpen && animations.length) settle();
   };
   surface.addEventListener('keydown', keydown);
+  surface.addEventListener('focusin', focusin);
   win.addEventListener('resize', resize);
   win.visualViewport?.addEventListener('resize', resize);
   return {
-    setOpen(open: boolean, reduced: boolean, done: () => void) { bindHandle(); return animate(open, reduced, done); },
-    suspend() { isOpen = true; closingDone = undefined; settle(); delete surface.dataset.detailMotion; detachHandle(); handle = null; },
-    dispose() { disposed = true; closingDone = undefined; cancel(); clearDrag(); resetStyles(); delete surface.dataset.detailMotion; detachHandle(); surface.removeEventListener('keydown', keydown); win.removeEventListener('resize', resize); win.visualViewport?.removeEventListener('resize', resize); },
+    setOpen(open: boolean, reduced: boolean, done: () => void, kind: SheetMotionKind = 'detail') { bindHandle(); return animate(open, reduced, done, kind); },
+    suspend() { isOpen = true; closingDone = undefined; settle(); delete surface.dataset.detailMotion; delete surface.dataset.sheetMotionKind; detachHandle(); handle = null; },
+    dispose() { disposed = true; closingDone = undefined; cancel(); clearDrag(); resetStyles(); delete surface.dataset.detailMotion; delete surface.dataset.sheetMotionKind; detachHandle(); surface.removeEventListener('keydown', keydown); surface.removeEventListener('focusin', focusin); win.removeEventListener('resize', resize); win.visualViewport?.removeEventListener('resize', resize); },
   };
 }

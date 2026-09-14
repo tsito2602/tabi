@@ -81,6 +81,20 @@
   transition-duration: var(--motion-open-dur);
   transition-timing-function: var(--ease-smooth-out);
 }
+/* Small transient surfaces share the same soft onset, without the large
+   origin expansion or a long stagger before a confirmation action is usable. */
+.motion-overlay[data-presentation="dialog"] { --motion-open-dur: 380ms; --motion-close-dur: 200ms; }
+.motion-overlay[data-presentation="dropdown"] { --motion-open-dur: 320ms; --motion-close-dur: 180ms; }
+.motion-overlay[data-presentation="dialog"] [data-motion-surface] {
+  transform: translateY(14px) scale(.985);
+}
+.motion-overlay[data-presentation="dropdown"] [data-motion-surface] {
+  transform: translateY(-6px) scale(.98);
+}
+.motion-overlay:is([data-presentation="dialog"], [data-presentation="dropdown"]) [data-motion-surface].is-open {
+  transform: none;
+  transition: transform var(--motion-open-dur) cubic-bezier(.2, .9, .2, 1), opacity 280ms cubic-bezier(.3, 0, .35, 1);
+}
 /* Keep intrinsic widths inside the route. Horizontal tabs still own their
    scroll area; do not clip the entire page to conceal oversized content. */
 .motion-page, .motion-page-content {

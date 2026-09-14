@@ -21,6 +21,7 @@ import { useTripHeaderHeight } from '@/components/trip-header-context';
 
 export default function PlacesScreen() {
   const [detailOrigin, setDetailOrigin] = useState<DetailOrigin>();
+  const [actionOrigin, setActionOrigin] = useState<DetailOrigin>();
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
 
@@ -63,8 +64,9 @@ export default function PlacesScreen() {
             {place.location ? <Text numberOfLines={1} style={styles.location}>{/^https?:/i.test(place.location) ? '地図リンクを保存済み' : place.location}</Text> : null}
           </Pressable>
           <View style={styles.cardFooter}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`${place.title}のステータスを変更`} disabled={!canEdit} onPress={() => setStatusPlace(place)} style={[styles.status, place.status === 'visited' && styles.statusVisited]}><PlaceStatusIcon status={place.status} /><Text style={styles.statusText}>{status.label}</Text></Pressable>
-            <View style={styles.cardActions}>{itineraryItem || canEdit ? <Pressable accessibilityRole="button" onPress={() => {
+            <Pressable accessibilityRole="button" accessibilityLabel={`${place.title}のステータスを変更`} disabled={!canEdit} onPress={(event) => { setActionOrigin(captureDetailOrigin(event)); setStatusPlace(place); }} style={[styles.status, place.status === 'visited' && styles.statusVisited]}><PlaceStatusIcon status={place.status} /><Text style={styles.statusText}>{status.label}</Text></Pressable>
+            <View style={styles.cardActions}>{itineraryItem || canEdit ? <Pressable accessibilityRole="button" onPress={(event) => {
+              setActionOrigin(captureDetailOrigin(event));
               if (itineraryItem && selectedTrip) {
                 router.push({ pathname: '/trips/[tripId]/itinerary', params: { tripId: selectedTrip.id, itemId: itineraryItem.id } });
               } else { setDay(selectedTrip?.startsOn ?? ''); setCategory('sightseeing'); setPlanning(place); }
@@ -74,14 +76,15 @@ export default function PlacesScreen() {
       })}</View>}
     </ScrollView>
     {canEdit ? <FloatingAddButton label="場所を追加" onPress={() => open()} /> : null}
-    <MotionPresence>{editing ? <PlaceSheet detailOrigin={detailOrigin} key={editing === 'new' ? 'new' : editing.id} place={editing === 'new' ? undefined : places.find((place) => place.id === editing.id) ?? editing} onClose={() => setEditing(null)} onPlan={canEdit || (editing !== 'new' && items.some((item) => item.id === editing.itineraryItemId)) ? (place) => {
+    <MotionPresence>{editing ? <PlaceSheet detailOrigin={detailOrigin} key={editing === 'new' ? 'new' : editing.id} place={editing === 'new' ? undefined : places.find((place) => place.id === editing.id) ?? editing} onClose={() => setEditing(null)} onPlan={canEdit || (editing !== 'new' && items.some((item) => item.id === editing.itineraryItemId)) ? (place, origin) => {
+      setActionOrigin(origin);
       setEditing(null);
       const item = items.find((entry) => entry.id === place.itineraryItemId);
       if (item && selectedTrip) router.push({ pathname: '/trips/[tripId]/itinerary', params: { tripId: selectedTrip.id, itemId: item.id } });
       else { setDay(selectedTrip?.startsOn ?? ''); setCategory('sightseeing'); setPlanning(place); }
     } : undefined} /> : null}</MotionPresence>
-    <MotionPresence>{statusPlace ? <FormSheet visible title="ステータスを変更" onClose={() => setStatusPlace(null)}><Text style={styles.placeTitle}>{statusPlace.title}</Text>{placeStatuses.map((entry) => <Pressable accessibilityRole="button" key={entry.value} disabled={!canEdit} onPress={() => { updatePlace(statusPlace.id, { ...statusPlace, status: entry.value }); setStatusPlace(null); }} style={[styles.option, statusPlace.status === entry.value && styles.filterSelected]}><PlaceStatusIcon status={entry.value} /><Text style={styles.optionText}>{entry.label}{statusPlace.status === entry.value ? '　✓' : ''}</Text></Pressable>)}</FormSheet> : null}</MotionPresence>
-    <MotionPresence>{planning ? <FormSheet visible title="しおりに追加" onClose={() => setPlanning(null)} onSave={canEdit ? plan : undefined} saveLabel="追加" canSave={Boolean(day)}><Text style={styles.placeTitle}>{planning.title}</Text><ItineraryCategoryPicker linkedPlace value={category} onChange={setCategory} /><DateRangePicker mode="single" startDate={day} endDate={day} label="訪問日" onChange={(range) => setDay(range.startDate)} /></FormSheet> : null}</MotionPresence>
+    <MotionPresence>{statusPlace ? <FormSheet detailOrigin={actionOrigin} visible title="ステータスを変更" onClose={() => setStatusPlace(null)}><Text style={styles.placeTitle}>{statusPlace.title}</Text>{placeStatuses.map((entry) => <Pressable accessibilityRole="button" key={entry.value} disabled={!canEdit} onPress={() => { updatePlace(statusPlace.id, { ...statusPlace, status: entry.value }); setStatusPlace(null); }} style={[styles.option, statusPlace.status === entry.value && styles.filterSelected]}><PlaceStatusIcon status={entry.value} /><Text style={styles.optionText}>{entry.label}{statusPlace.status === entry.value ? '　✓' : ''}</Text></Pressable>)}</FormSheet> : null}</MotionPresence>
+    <MotionPresence>{planning ? <FormSheet detailOrigin={actionOrigin} visible title="しおりに追加" onClose={() => setPlanning(null)} onSave={canEdit ? plan : undefined} saveLabel="追加" canSave={Boolean(day)}><Text style={styles.placeTitle}>{planning.title}</Text><ItineraryCategoryPicker linkedPlace value={category} onChange={setCategory} /><DateRangePicker mode="single" startDate={day} endDate={day} label="訪問日" onChange={(range) => setDay(range.startDate)} /></FormSheet> : null}</MotionPresence>
   </View>;
 }
 const createStyles = (palette: Palette) => StyleSheet.create({

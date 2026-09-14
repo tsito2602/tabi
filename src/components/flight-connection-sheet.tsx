@@ -1,8 +1,11 @@
+import { MotionModal } from './motion-modal';
+import type { DetailOrigin } from '@/utils/detail-origin';
+import type { ComponentProps } from 'react';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { useModalViewport } from '@/hooks/use-modal-viewport';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { type Palette } from '@/constants/design';
@@ -17,7 +20,7 @@ export function flightDate(day: string) {
 }
 
 export function FlightConnectionLink({ booking, connection, nextFlight, onPress, compact = false, disabled = false }: {
-  booking: Booking; connection?: FlightConnection; nextFlight?: Booking; onPress: () => void; compact?: boolean; disabled?: boolean;
+  booking: Booking; connection?: FlightConnection; nextFlight?: Booking; onPress: ComponentProps<typeof Pressable>['onPress']; compact?: boolean; disabled?: boolean;
 }) {
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
@@ -34,14 +37,15 @@ export function FlightConnectionLink({ booking, connection, nextFlight, onPress,
   </Pressable>;
 }
 
-export function FlightConnectionSheet({ bookingId, onClose }: { bookingId: string; onClose: () => void }) {
+export function FlightConnectionSheet({ bookingId, onClose, detailOrigin }: { detailOrigin?: DetailOrigin; bookingId: string; onClose: () => void }) {
   const { canEdit, bookings, selectedTrip, setFlightConnection } = useTravel();
   const booking = bookings.find((item) => item.id === bookingId);
   if (!canEdit || !booking || booking.kind !== 'flight') return null;
-  return <ConnectionEditor key={`${selectedTrip?.id}:${bookingId}`} booking={booking} bookings={bookings} onClose={onClose} onSave={setFlightConnection} />;
+  return <ConnectionEditor detailOrigin={detailOrigin} key={`${selectedTrip?.id}:${bookingId}`} booking={booking} bookings={bookings} onClose={onClose} onSave={setFlightConnection} />;
 }
 
-function ConnectionEditor({ booking, bookings, onClose, onSave }: {
+function ConnectionEditor({ booking, bookings, onClose, onSave, detailOrigin }: {
+  detailOrigin?: DetailOrigin;
   booking: Booking; bookings: Booking[]; onClose: () => void;
   onSave: (id: string, mode: FlightConnectionMode, nextFlightId?: string | null) => void;
 }) {
@@ -64,15 +68,15 @@ function ConnectionEditor({ booking, bookings, onClose, onSave }: {
   };
   const select = (nextMode: FlightConnectionMode, nextTarget: string | null = null) => { setMode(nextMode); setTarget(nextTarget); setError(''); };
 
-  return <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+  return <MotionModal detailOrigin={detailOrigin} visible transparent animationType="fade" onRequestClose={onClose}>
     <SafeAreaView testID="modal-viewport" style={[styles.backdrop, viewport]}>
       <Pressable accessibilityLabel="乗り継ぎの変更をキャンセル" onPress={onClose} style={StyleSheet.absoluteFill} />
       <View testID="picker-sheet" accessibilityViewIsModal style={styles.sheet}>
-        <View style={styles.header}>
+        <View testID="sheet-header" style={styles.header}>
           <View><Text style={styles.heading}>乗り継ぎ便</Text><Text style={styles.subtitle}>次に乗る便を選択</Text></View>
           <Pressable accessibilityRole="button" accessibilityLabel="閉じる" onPress={onClose} style={styles.closeButton}><Text style={styles.close}>×</Text></Pressable>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <ScrollView testID="sheet-content-scroll" showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
           <View style={styles.arrival}>
             <Text style={styles.eyebrow}>到着する便</Text>
             <Text style={styles.flightTitle}>{booking.title}</Text>
@@ -108,7 +112,7 @@ function ConnectionEditor({ booking, bookings, onClose, onSave }: {
           {mode === 'manual' && !chosen ? <Text style={styles.error}>指定した便を選べなくなりました。別の便を選択してください。</Text> : null}
           {error ? <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
         </ScrollView>
-        <View style={styles.footer}>
+        <View testID="sheet-footer" style={styles.footer}>
           {chosen && chosenFlight ? <View style={styles.preview}>
             <Text style={styles.previewRoute}>{booking.originCode || booking.origin} → {chosen.airportCode} → {chosenFlight.destinationCode || chosenFlight.destination}</Text>
             <Text style={styles.optionDetail}>乗り継ぎ {formatConnectionDuration(chosen.durationMinutes)}</Text>
@@ -117,7 +121,7 @@ function ConnectionEditor({ booking, bookings, onClose, onSave }: {
         </View>
       </View>
     </SafeAreaView>
-  </Modal>;
+  </MotionModal>;
 }
 
 function Radio({ checked }: { checked: boolean }) {

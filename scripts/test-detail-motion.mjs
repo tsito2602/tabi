@@ -28,7 +28,7 @@ function fixture() {
   dom.window.HTMLElement.prototype.animate = function (frames, options) {
     let resolve, reject;
     const finished = new Promise((a,b) => { resolve = a; reject = b; });
-    const record = { element: this, frames, options, finished, cancel: () => reject(new Error('cancelled')), finish: resolve };
+    const record = { element: this, frames, options, finished, cancel: () => { record.cancelled = true; reject(new Error('cancelled')); }, finish: resolve };
     records.push(record); return record;
   };
   const source = doc.querySelector('#source'), surface = doc.querySelector('#surface'), viewport = doc.querySelector('#viewport');
@@ -163,3 +163,43 @@ for (const supported of [true, false]) {
   await f.finish(); assert.equal(closed, 1); f.close();
 }
 console.log('Detail motion: floating stagger, opaque inverse contraction, handoff completion, interrupted/dragged close, fallback and cleanup passed.');
+
+// The same controller covers utility sheets without duplicating their fields.
+for (const kind of ['form', 'picker']) {
+  const f = fixture(); let closed = 0;
+  f.doc.querySelector('#note').style.opacity = '.45';
+  f.motion.setOpen(true, false, () => {}, kind);
+  assert.equal(f.surface.dataset.sheetMotionKind, kind);
+  const moves = f.records.filter(r => r.element !== f.surface && 'transform' in r.frames[0]);
+  const fades = f.records.filter(r => r.element !== f.surface && 'opacity' in r.frames[0]);
+  assert(moves.every(r => r.frames[0].transform.includes('16px')));
+  assert.equal(new Set(moves.map(r => r.options.delay)).size, moves.length);
+  assert.equal(fades.find(r => r.element.id === 'note').frames.at(-1).opacity, '0.45', 'disabled-looking controls retain their resting opacity');
+  await f.finish();
+  const count = f.records.length;
+  f.motion.setOpen(true, false, () => {}, kind);
+  assert.equal(f.records.length, count, 'selection and ordinary updates do not restart entrance');
+  f.motion.setOpen(false, false, () => closed++, kind); await f.finish();
+  assert.equal(closed, 1, 'utility sheets wait for the reverse transition'); f.close();
+}
+{
+  const f = fixture(); f.motion.setOpen(true, false, () => {}, 'form');
+  const input = f.doc.createElement('input'); f.surface.append(input); input.focus();
+  assert(f.records.every(r => r.cancelled), 'typing settles pending motion immediately');
+  await f.finish(); f.close();
+}
+{
+  const f = fixture(), fill = f.doc.querySelector('[data-testid="form-sheet-fill"]');
+  fill.innerHTML = '<header data-testid="sheet-header">Connections</header><div data-testid="sheet-content-scroll"><div><section id="arrival">Arrival</section><button id="option">Auto</button><section id="calendar"><button>1</button><button>2</button></section></div></div><footer data-testid="sheet-footer">Save</footer>';
+  const blocks = detailContentBlocks(fill);
+  assert.deepEqual(blocks.map(e => e.id || e.tagName), ['HEADER','arrival','option','calendar','FOOTER']);
+  assert(!blocks.some(a => blocks.some(b => a !== b && a.contains(b))), 'no parent/child double animation or individual calendar cells'); f.close();
+}
+{
+  const f = fixture(); f.motion.setOpen(true, false, () => {}); await f.finish();
+  const count = f.records.length; f.motion.setOpen(true, false, () => {}, 'form');
+  const changed = f.records.slice(count);
+  assert.equal(changed.find(r => r.element === f.surface).frames[0].transform, 'none', 'editing changes content without collapsing back to the item');
+  assert(changed.some(r => r.element !== f.surface && r.frames[0].opacity === '0')); await f.finish(); f.close();
+}
+console.log('Utility sheets: shared motion, ordered controls, focus, no replay, picker grouping, opacity and mode changes passed.');

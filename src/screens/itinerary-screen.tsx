@@ -200,6 +200,7 @@ export default function ItineraryScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const editingPlace = editingId ? places.find((place) => place.itineraryItemId === editingId) : undefined;
   const [connectionBookingId, setConnectionBookingId] = useState<string | null>(null);
+  const [connectionOrigin, setConnectionOrigin] = useState<DetailOrigin>();
   const [day, setDay] = useState(selectedTrip?.startsOn ?? '');
   const [time, setTime] = useState('10:00');
   const [title, setTitle] = useState('');
@@ -450,9 +451,9 @@ export default function ItineraryScreen() {
                       </View>
                       <Text style={styles.chevron}>›</Text>
                     </Pressable>}
-                    {connection ? <ConnectionRow disabled={!canEdit} connection={connection} continueRail={connectedDepartures.has(connection.departureBookingId)} nextFlight={bookings.find((flight) => flight.id === connection.departureBookingId)} onPress={() => setConnectionBookingId(connection.arrivalBookingId)} />
+                    {connection ? <ConnectionRow disabled={!canEdit} connection={connection} continueRail={connectedDepartures.has(connection.departureBookingId)} nextFlight={bookings.find((flight) => flight.id === connection.departureBookingId)} onPress={(event) => { setConnectionOrigin(captureDetailOrigin(event)); setConnectionBookingId(connection.arrivalBookingId); }} />
                       : canEdit && isLinkedEnd && entry.booking?.kind === 'flight' && hasLikelyFlightConnection(entry.booking, bookings)
-                        ? <View style={styles.connectionAction}><FlightConnectionLink compact booking={entry.booking} onPress={() => setConnectionBookingId(entry.booking!.id)} /></View> : null}
+                        ? <View style={styles.connectionAction}><FlightConnectionLink compact booking={entry.booking} onPress={(event) => { setConnectionOrigin(captureDetailOrigin(event)); setConnectionBookingId(entry.booking!.id); }} /></View> : null}
                     </Fragment>
                     );
                   })}
@@ -469,7 +470,7 @@ export default function ItineraryScreen() {
       </ScrollView>
 
       {selectedTrip && canEdit ? <FloatingAddButton label="予定を追加する" onPress={() => openAdd()} /> : null}
-      <MotionPresence>{connectionBookingId ? <FlightConnectionSheet bookingId={connectionBookingId} onClose={() => setConnectionBookingId(null)} /> : null}</MotionPresence>
+      <MotionPresence>{connectionBookingId ? <FlightConnectionSheet detailOrigin={connectionOrigin} bookingId={connectionBookingId} onClose={() => setConnectionBookingId(null)} /> : null}</MotionPresence>
 
       <MotionPresence>{viewingBooking ? <BookingSheet detailOrigin={detailOrigin} key={`${selectedTrip?.id}:${viewingBooking.id}`} booking={viewingBooking} onClose={() => setViewingBookingId(null)} /> : null}</MotionPresence>
 
@@ -527,7 +528,7 @@ function TransportRow({ item, hasPrevious, hasNext, onPress }: { item: Itinerary
   </Pressable>;
 }
 
-function ConnectionRow({ connection, continueRail, nextFlight, onPress, disabled = false }: { connection: FlightConnection; continueRail: boolean; nextFlight?: Booking; onPress: () => void; disabled?: boolean }) {
+function ConnectionRow({ connection, continueRail, nextFlight, onPress, disabled = false }: { connection: FlightConnection; continueRail: boolean; nextFlight?: Booking; onPress: ComponentProps<typeof Pressable>['onPress']; disabled?: boolean }) {
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
 

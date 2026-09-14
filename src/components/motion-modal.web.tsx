@@ -8,8 +8,8 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { motionMs } from '@/utils/motion';
 import { waitForMotion } from '@/utils/web-motion';
 
-const surfaceSelector = '[data-testid="form-sheet"], [data-testid="picker-sheet"], [data-testid="delete-trip-dialog"], [data-testid="trip-menu"], [data-testid="discard-dialog"]';
-const viewportSelector = '[data-testid="form-modal-viewport"], [data-testid="detail-modal-viewport"], [data-testid="modal-viewport"]';
+const surfaceSelector = '[data-testid="form-sheet"], [data-testid="picker-sheet"], [data-testid="note-editor"], [data-testid="delete-trip-dialog"], [data-testid="trip-menu"], [data-testid="discard-dialog"]';
+const viewportSelector = '[data-testid="form-modal-viewport"], [data-testid="detail-modal-viewport"], [data-testid="modal-viewport"], [data-testid="note-modal-viewport"]';
 
 export function MotionModal({ children, visible = true, motion = 'modal', onRequestClose, detail = false, detailOrigin, onDetailDismiss, ...props }: ModalProps & { motion?: 'modal' | 'dropdown'; detail?: boolean; detailOrigin?: DetailOrigin; onDetailDismiss?: () => void }) {
   const present = useContext(MotionPresenceContext);
@@ -55,7 +55,7 @@ export function MotionModal({ children, visible = true, motion = 'modal', onRequ
       viewport.style.setProperty('--motion-backdrop-color', getComputedStyle(viewport).backgroundColor);
       viewport.classList.add('motion-viewport');
     }
-    const sheet = surface.matches('[data-testid="form-sheet"], [data-testid="picker-sheet"]');
+    const sheet = surface.matches('[data-testid="form-sheet"], [data-testid="picker-sheet"], [data-testid="note-editor"]');
     root.setAttribute('data-presentation', motion === 'dropdown' ? 'dropdown' : sheet ? viewport.dataset.testid === 'detail-modal-viewport' ? 'detail' : 'sheet' : 'dialog');
     surface.dataset.motionSurface = '';
     surface.classList.add(`t-${motion}`);
@@ -67,9 +67,9 @@ export function MotionModal({ children, visible = true, motion = 'modal', onRequ
     surface.classList.toggle('is-closing', !open);
     root.classList.toggle('is-open', open);
     surface.inert = !open;
-    if (presentedDetail) {
+    if (presentedDetail || (sheet && typeof surface.animate === 'function')) {
       detailMotion.current ??= createDetailMotion(surface, viewport, presentedOrigin, () => dismiss.current?.());
-      return detailMotion.current.setOpen(open, reduced, finish);
+      return detailMotion.current.setOpen(open, reduced, finish, presentedDetail ? 'detail' : surface.dataset.testid === 'picker-sheet' ? 'picker' : 'form');
     }
     detailMotion.current?.suspend();
     if (open) return;

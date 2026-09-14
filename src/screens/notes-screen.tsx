@@ -1,7 +1,10 @@
+import { MotionModal } from '@/components/motion-modal';
+import { MotionPresence } from '@/components/motion-presence';
+import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
 import * as Crypto from 'expo-crypto';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FloatingAddButton } from '@/components/floating-add-button';
 import { useTripHeaderHeight } from '@/components/trip-header-context';
@@ -22,8 +25,9 @@ export default function NotesScreen() {
   const { notes, canEdit } = useTravel();
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<TravelNote | null>(null);
+  const [detailOrigin, setDetailOrigin] = useState<DetailOrigin>();
   const filtered = useMemo(() => notes.filter((note) => note.body.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id)), [notes, search]);
-  const add = () => setEditing({ id: Crypto.randomUUID(), body: '', pinned: false, updatedAt: Math.floor(Date.now() / 1000) });
+  const add = () => { setDetailOrigin(undefined); setEditing({ id: Crypto.randomUUID(), body: '', pinned: false, updatedAt: Math.floor(Date.now() / 1000) }); };
   return <View style={styles.screen}>
     <ScrollView testID="notes-scroll" keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingTop: headerHeight + 24 }]}>
       {notes.length ? <TextInput accessibilityLabel="メモを検索" value={search} onChangeText={setSearch} placeholder="検索" placeholderTextColor={palette.placeholder} style={styles.search} /> : null}
@@ -33,7 +37,7 @@ export default function NotesScreen() {
         <Text style={styles.muted}>思いついたことを、自由に。</Text>
         {canEdit ? <Pressable accessibilityRole="button" onPress={add} style={styles.primary}><Text style={styles.primaryText}>メモを書く</Text></Pressable> : null}
       </View> : !filtered.length ? <View style={styles.empty}><Text style={styles.emptyTitle}>メモが見つかりません</Text><Pressable accessibilityRole="button" onPress={() => setSearch('')} style={styles.control}><Text style={styles.actionText}>検索をクリア</Text></Pressable></View> : <View style={styles.list}>
-        {filtered.map((note, index) => <Pressable accessibilityRole="button" accessibilityLabel={`${titleOf(note.body)}を開く`} key={note.id} onPress={() => setEditing(note)} style={[styles.row, index > 0 && styles.divider]}>
+        {filtered.map((note, index) => <Pressable accessibilityRole="button" accessibilityLabel={`${titleOf(note.body)}を開く`} key={note.id} onPress={(event) => { setDetailOrigin(captureDetailOrigin(event)); setEditing(note); }} style={[styles.row, index > 0 && styles.divider]}>
           <View style={styles.rowHeading}><Text numberOfLines={1} style={styles.rowTitle}>{titleOf(note.body)}</Text>{note.pinned ? <SymbolView name={{ ios: 'pin.fill', android: 'push_pin', web: 'push_pin' }} size={16} tintColor={palette.ocean} /> : null}</View>
           <View style={styles.preview}><Text style={styles.date}>{dateOf(note.updatedAt)}</Text><Text numberOfLines={1} style={styles.snippet}>{note.body.trim().split('\n').slice(1).filter(Boolean).join(' ') || '本文なし'}</Text></View>
         </Pressable>)}
@@ -41,11 +45,11 @@ export default function NotesScreen() {
       {notes.length ? <Text style={styles.count}>{filtered.length}件のメモ</Text> : null}
     </ScrollView>
     {canEdit ? <FloatingAddButton label="メモを書く" onPress={add} /> : null}
-    {editing ? <NoteEditor key={editing.id} initial={editing} onClose={() => setEditing(null)} /> : null}
+    <MotionPresence>{editing ? <NoteEditor detailOrigin={detailOrigin} key={editing.id} initial={editing} onClose={() => setEditing(null)} /> : null}</MotionPresence>
   </View>;
 }
 
-function NoteEditor({ initial, onClose }: { initial: TravelNote; onClose: () => void }) {
+function NoteEditor({ initial, onClose, detailOrigin }: { detailOrigin?: DetailOrigin; initial: TravelNote; onClose: () => void }) {
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
   const viewport = useModalViewport();
@@ -103,9 +107,9 @@ function NoteEditor({ initial, onClose }: { initial: TravelNote; onClose: () => 
     change({ ...draftRef.current, body: next });
     input.current?.focus();
   };
-  return <Modal visible animationType="slide" onRequestClose={close}>
-    <SafeAreaView style={[styles.editorBackdrop, viewport]}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.editor}>
+  return <MotionModal detailOrigin={detailOrigin} transparent={Platform.OS === 'web'} visible animationType="slide" onRequestClose={close}>
+    <SafeAreaView testID="note-modal-viewport" style={[styles.editorBackdrop, viewport]}>
+      <KeyboardAvoidingView testID="note-editor" behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.editor}>
         <View style={styles.editorToolbar}>
           <Pressable accessibilityRole="button" onPress={close} style={styles.control}><Text style={styles.actionText}>‹ メモ</Text></Pressable>
           <View style={styles.tools}>
@@ -122,7 +126,7 @@ function NoteEditor({ initial, onClose }: { initial: TravelNote; onClose: () => 
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
-  </Modal>;
+  </MotionModal>;
 }
 
 const createStyles = (palette: Palette) => StyleSheet.create({
@@ -137,7 +141,7 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   empty: { alignItems: 'center', paddingVertical: 64, gap: 18 }, emptyIcon: { width: 88, height: 88, borderRadius: 24, backgroundColor: palette.sky, alignItems: 'center', justifyContent: 'center' },
   emptyTitle: { fontSize: 22, fontWeight: '700', color: palette.ink }, muted: { fontSize: 14, color: palette.slate },
   primary: { minHeight: 48, borderRadius: 12, backgroundColor: palette.ocean, paddingHorizontal: 24, justifyContent: 'center', marginTop: 8 }, primaryText: { color: palette.onOcean, fontSize: 15, fontWeight: '700' },
-  editorBackdrop: { flex: 1, backgroundColor: palette.paper }, editor: { flex: 1, width: '100%', maxWidth: 860, alignSelf: 'center' },
+  editorBackdrop: { flex: 1, backgroundColor: Platform.OS === 'web' ? 'rgba(24,42,54,0.3)' : palette.paper }, editor: { backgroundColor: palette.paper, flex: 1, width: '100%', maxWidth: 860, alignSelf: 'center' },
   editorToolbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, minHeight: 56 }, tools: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   control: { minHeight: 44, minWidth: 44, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' }, actionText: { color: palette.ocean, fontSize: 17 }, done: { fontSize: 17, fontWeight: '700', color: palette.ocean },
   editorDate: { textAlign: 'center', color: palette.smoke, fontSize: 12, marginVertical: 10 },
