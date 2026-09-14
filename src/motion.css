@@ -81,6 +81,12 @@
   transition-duration: var(--motion-open-dur);
   transition-timing-function: var(--ease-smooth-out);
 }
+/* Keep intrinsic widths inside the route. Horizontal tabs still own their
+   scroll area; do not clip the entire page to conceal oversized content. */
+.motion-page, .motion-page-content {
+  min-width: 0;
+  max-width: 100%;
+}
 .motion-page-content {
   display: flex;
   flex: 1;
