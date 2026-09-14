@@ -1,0 +1,54 @@
+/* Only the chosen ticket participates; names are assigned for one navigation.
+   The sidebar and the router remain live, with no duplicate screens or locks. */
+html[data-trip-transition] { --trip-journey-duration: 420ms; }
+html[data-trip-transition="close"] { --trip-journey-duration: 340ms; }
+html[data-trip-transition] .motion-page-content,
+.motion-page-content[data-trip-journey-page] {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+html[data-trip-transition]::view-transition { pointer-events: none; }
+html[data-trip-transition]::view-transition-group(tabi-trip-cover),
+html[data-trip-transition]::view-transition-group(tabi-trip-title) {
+  animation-duration: var(--trip-journey-duration);
+  animation-timing-function: cubic-bezier(.22, 1, .36, 1);
+}
+html[data-trip-transition]::view-transition-group(tabi-trip-cover) { z-index: 3; }
+html[data-trip-transition]::view-transition-group(tabi-trip-title) { z-index: 5; }
+html[data-trip-transition]::view-transition-group(tabi-trip-header) { z-index: 4; }
+html[data-trip-transition]::view-transition-group(tabi-trip-paper) { z-index: 2; }
+html[data-trip-transition]::view-transition-image-pair(tabi-trip-cover) { overflow: clip; }
+html[data-trip-transition="open"]::view-transition-image-pair(tabi-trip-cover) {
+  animation: trip-cover-open var(--trip-journey-duration) cubic-bezier(.22, 1, .36, 1) both;
+}
+html[data-trip-transition="close"]::view-transition-image-pair(tabi-trip-cover) {
+  animation: trip-cover-close var(--trip-journey-duration) cubic-bezier(.22, 1, .36, 1) both;
+}
+html[data-trip-transition]::view-transition-old(root) { animation: trip-page-out 100ms ease-out both; }
+html[data-trip-transition="open"]::view-transition-new(root) { animation: trip-list-in 180ms ease-out both; }
+html[data-trip-transition]::view-transition-new(tabi-trip-paper) { animation: trip-page-in 240ms 70ms cubic-bezier(.22, 1, .36, 1) both; }
+html[data-trip-transition]::view-transition-old(tabi-trip-paper),
+html[data-trip-transition]::view-transition-old(tabi-trip-header) { animation: trip-page-out 100ms ease-out both; }
+html[data-trip-transition]::view-transition-new(tabi-trip-header) { animation: trip-list-in 180ms 70ms ease-out both; }
+html[data-trip-transition="close"]::view-transition-new(root) { animation: trip-list-in 180ms ease-out both; }
+html[data-trip-transition]::view-transition-old(tabi-trip-title),
+html[data-trip-transition]::view-transition-new(tabi-trip-title) { mix-blend-mode: normal; }
+@keyframes trip-page-out { to { opacity: 0; } }
+@keyframes trip-page-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes trip-list-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes trip-cover-open { from { border-radius: 24px 0 0 24px; } to { border-radius: 0; } }
+@keyframes trip-cover-close { from { border-radius: 0; } to { border-radius: 24px 0 0 24px; } }
+
+/* Keep the desktop day index. The photo opens inside the journal column,
+   rather than expanding underneath the persistent navigation sidebar. */
+@media (min-width: 1024px) {
+  [data-testid="trip-workspace"] [data-testid="itinerary-intro"] { display: flex !important; }
+  [data-testid="desktop-trip-cover"] { flex-shrink: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-trip-transition]::view-transition-group(*),
+  html[data-trip-transition]::view-transition-image-pair(*),
+  html[data-trip-transition]::view-transition-old(*),
+  html[data-trip-transition]::view-transition-new(*) { animation: none !important; }
+}

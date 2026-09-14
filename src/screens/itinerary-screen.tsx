@@ -6,7 +6,7 @@ import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { useDesktop } from '@/hooks/use-desktop';
 import { PageHeading } from '@/components/page-heading';
 import { useToast } from '@/components/toast';
-import { useTripHero } from '@/components/trip-hero';
+import { TripHero, useTripHero } from '@/components/trip-hero';
 import { useTripHeaderHeight } from '@/components/trip-header-context';
 import { BookingSheet } from '@/components/booking-sheet';
 import { ItineraryCategoryPicker, ItineraryFields } from '@/components/itinerary-fields';
@@ -373,8 +373,8 @@ export default function ItineraryScreen() {
         showsVerticalScrollIndicator={false}
         >
         <View testID="itinerary-intro" onLayout={(event) => hero?.setPinAt(event.nativeEvent.layout.height)}>
-          <View pointerEvents="none" style={{ height: Math.max(0, (hero?.height ?? headerHeight + 200) - headerHeight - 28) }} />
-          <View style={styles.journalSheet}><View style={styles.content}><View style={styles.sheetIntro}><Text style={styles.journalLabel}>しおり</Text><Text style={styles.journalCount}>{itineraryDates.length}日間</Text></View></View></View>
+          {desktop && selectedTrip && hero ? <View testID="desktop-trip-cover" style={{ height: 260, overflow: 'hidden' }}><TripHero trip={selectedTrip} height={260} scrollY={hero.scrollY} /></View> : <View pointerEvents="none" style={{ height: Math.max(0, (hero?.height ?? headerHeight + 200) - headerHeight - 28) }} />}
+          {!desktop ? <View style={styles.journalSheet}><View style={styles.content}><View style={styles.sheetIntro}><Text style={styles.journalLabel}>しおり</Text><Text style={styles.journalCount}>{itineraryDates.length}日間</Text></View></View></View> : null}
         </View>
         <View testID="itinerary-day-bar" onLayout={(event) => setDayBarHeight(event.nativeEvent.layout.height)} style={styles.dayNavSticky}>
           {selectedTrip && itineraryDates.length ? <ScrollView testID="itinerary-day-tabs" ref={dateScrollRef} onLayout={(event) => { dateViewport.current = event.nativeEvent.layout.width; }} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}><MotionTabs style={styles.dayTabs}>

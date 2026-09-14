@@ -1,3 +1,4 @@
+import { getTripListSearch, openTripTransition, rememberTripListSearch } from '@/utils/trip-transition';
 import { MotionPage } from '@/components/motion-page';
 import { MotionPresence } from '@/components/motion-presence';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
@@ -20,7 +21,7 @@ export default function HomeScreen() {
   const styles = useThemedStyles(createStyles);
 
   const desktop = useDesktop();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(getTripListSearch);
   const { invite } = useLocalSearchParams<{ invite?: string | string[] }>();
   const { trips, selectTrip, acceptInvite, ready, syncing, sync } = useTravel();
   const { isDemo, user } = useAuth();
@@ -34,19 +35,21 @@ export default function HomeScreen() {
     void acceptInvite(token).then(() => setNotice('旅行に参加しました')).catch((cause) => setNotice(cause instanceof Error ? cause.message : '招待リンクを確認してください')).finally(() => router.replace('/'));
   }, [acceptInvite, invite, ready, isDemo]);
   const openTrip = (tripId: string) => {
-    selectTrip(tripId);
-    router.push({ pathname: '/trips/[tripId]/itinerary', params: { tripId } });
+    openTripTransition(tripId, () => {
+      selectTrip(tripId);
+      router.push({ pathname: '/trips/[tripId]/itinerary', params: { tripId } });
+    });
   };
   const today = localDate();
   const matchingTrips = trips.filter((trip) => `${trip.name} ${trip.destination}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const groups = [{ label: 'これからの旅行', trips: matchingTrips.filter((trip) => trip.endsOn >= today).sort((a,b) => a.startsOn.localeCompare(b.startsOn)) }, { label: 'これまでの旅行', trips: matchingTrips.filter((trip) => trip.endsOn < today).sort((a,b) => b.startsOn.localeCompare(a.startsOn)) }];
   return <MotionPage><SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-    <ScrollView testID="home-scroll" contentContainerStyle={styles.content} refreshControl={!isDemo ? <RefreshControl refreshing={syncing} onRefresh={() => void sync()} tintColor={palette.ocean} /> : undefined}>
+    <ScrollView nativeID={ready ? "trip-list-ready" : undefined} testID="home-scroll" contentContainerStyle={styles.content} refreshControl={!isDemo ? <RefreshControl refreshing={syncing} onRefresh={() => void sync()} tintColor={palette.ocean} /> : undefined}>
       <View testID="home-header" style={styles.header}>
         <View><Text style={styles.eyebrow}>TABI</Text><Text accessibilityRole="header" style={styles.title}>旅行</Text></View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Pressable accessibilityRole="button" accessibilityLabel="設定を開く" onPress={() => router.push('/settings')} style={{ padding: 4 }}><MemberAvatar name={user?.name || 'あなた'} avatarUrl={user?.avatarUrl} size={36} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="旅行を追加する" disabled={!ready} onPress={() => setCreating(true)} style={({ pressed }) => [styles.add, pressed && styles.pressed]}><Text style={styles.addText}>＋ 旅行</Text></Pressable></View>
       </View>
-      {desktop && trips.length ? <TextInput accessibilityLabel="旅行を検索" placeholder="旅行名・行き先で検索" placeholderTextColor={palette.placeholder} value={search} onChangeText={setSearch} style={{ padding: 14, backgroundColor: palette.paper, borderRadius: 10, color: palette.ink, fontSize: 14, marginVertical: 16, maxWidth: 420 }} /> : null}
+      {desktop && trips.length ? <TextInput accessibilityLabel="旅行を検索" placeholder="旅行名・行き先で検索" placeholderTextColor={palette.placeholder} value={search} onChangeText={(value) => { rememberTripListSearch(value); setSearch(value); }} style={{ padding: 14, backgroundColor: palette.paper, borderRadius: 10, color: palette.ink, fontSize: 14, marginVertical: 16, maxWidth: 420 }} /> : null}
       {desktop && trips.length > 0 && !matchingTrips.length ? <Text style={styles.notice}>該当する旅行がありません</Text> : null}
       <SyncStatus />
       {notice ? <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text> : null}

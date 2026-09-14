@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+import { TripTransitions } from '@/components/trip-transitions';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { AppThemeProvider, useAppTheme } from '@/theme/theme-provider';
 import '@/global.css';
@@ -37,10 +39,10 @@ function TravelRoot() {
   const { palette } = useAppTheme();
   const { isDemo, user } = useAuth();
   return <TravelProvider key={isDemo ? 'demo' : user?.id}>
-            <WebWorkspace><Stack screenOptions={{ contentStyle: { backgroundColor: palette.canvas }, headerShown: false }}>
+            <TripTransitions /><WebWorkspace><Stack screenOptions={{ contentStyle: { backgroundColor: palette.canvas }, headerShown: false }}>
               <Stack.Screen name="index" />
               <Stack.Screen name="settings" />
-              <Stack.Screen name="trips/[tripId]" options={{ animation: reduced ? 'none' : 'slide_from_right' }} />
+              <Stack.Screen name="trips/[tripId]" options={{ animation: Platform.OS === 'web' || reduced ? 'none' : 'slide_from_right' }} />
             </Stack></WebWorkspace>
           </TravelProvider>;
 }

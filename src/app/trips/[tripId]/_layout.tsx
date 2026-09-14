@@ -43,7 +43,7 @@ export default function TripLayout() {
   if (!tripId || !tripExists) return <Redirect href="/" />;
 
   return (
-    <PageActionContext.Provider value={{ action, setAction }}><View style={styles.safeArea}>
+    <PageActionContext.Provider value={{ action, setAction }}><View testID="trip-workspace" nativeID={`trip-workspace-${tripId}`} style={styles.safeArea}>
       {showHero && selectedTrip ? <TripHero trip={selectedTrip} height={heroHeight} scrollY={scrollY} /> : null}
       {showHero ? <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: headerHeight + insets.top, backgroundColor: palette.canvas, opacity: scrollY.interpolate({ inputRange: [Math.max(0, pinAt - 100), Math.max(1, pinAt)], outputRange: [0, 1], extrapolate: 'clamp' }) }} /> : null}
       <SafeAreaView edges={['top']} style={{ flex: 1 }}>

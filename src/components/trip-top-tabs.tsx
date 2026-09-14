@@ -1,3 +1,4 @@
+import { closeTripTransition } from '@/utils/trip-transition';
 import { MotionPresence } from '@/components/motion-presence';
 import { MotionTabs } from './motion-tabs';
 import { MotionModal } from './motion-modal';
@@ -63,8 +64,8 @@ export function TripTopTabs({ tripId }: { tripId: string }) {
   return <View testID="trip-header" style={[styles.shell, { paddingTop: insets.top }]}>
     <View testID="trip-header-inner" style={styles.inner}>
       <View style={styles.topRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel={managing ? 'しおりへ戻る' : '旅行一覧へ戻る'} onPress={() => managing ? router.replace({ pathname: '/trips/[tripId]/itinerary', params: { tripId } }) : router.replace('/')} testID="trip-back" style={styles.backButton}><Text style={styles.backMark}>‹</Text></Pressable>
-        <View testID="trip-heading" style={styles.title}><Text numberOfLines={1} style={styles.tripName}>{managing ? 'メンバー' : selectedTrip?.name}</Text><Text style={styles.tripDates}>{managing ? selectedTrip?.name : `${selectedTrip?.startsOn.replaceAll('-', '.')} — ${selectedTrip?.endsOn.replaceAll('-', '.')}`}</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel={managing ? 'しおりへ戻る' : '旅行一覧へ戻る'} onPress={() => managing ? router.replace({ pathname: '/trips/[tripId]/itinerary', params: { tripId } }) : closeTripTransition(tripId, () => router.replace('/'))} testID="trip-back" style={styles.backButton}><Text style={styles.backMark}>‹</Text></Pressable>
+        <View testID="trip-heading" style={styles.title}><Text testID="trip-name" accessibilityRole="header" numberOfLines={1} style={styles.tripName}>{managing ? 'メンバー' : selectedTrip?.name}</Text><Text style={styles.tripDates}>{managing ? selectedTrip?.name : `${selectedTrip?.startsOn.replaceAll('-', '.')} — ${selectedTrip?.endsOn.replaceAll('-', '.')}`}</Text></View>
         {desktop && action ? <Pressable testID="desktop-page-action" accessibilityRole="button" accessibilityLabel={action.label} onPress={action.run} style={{ position: 'absolute', right: 56, paddingHorizontal: 18, height: 44, borderRadius: 10, backgroundColor: palette.ocean, justifyContent: 'center' }}><Text style={{ color: palette.onOcean, fontSize: 14, fontWeight: '700' }}>＋ {action.label.replace(/する$/, '')}</Text></Pressable> : null}
         <Pressable accessibilityRole="button" accessibilityLabel="旅行メニュー" onPress={() => setMenu(true)} style={styles.menuButton}><Text style={styles.menuMark}>⋯</Text></Pressable>
       </View>
