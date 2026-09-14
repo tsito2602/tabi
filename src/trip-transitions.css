@@ -14,7 +14,8 @@ html[data-trip-transition]::view-transition-group(tabi-trip-title) {
   animation-duration: var(--trip-journey-duration);
   animation-timing-function: cubic-bezier(.22, 1, .36, 1);
 }
-html[data-trip-transition]::view-transition-group(tabi-trip-cover) { z-index: 3; }
+/* Keep the cover behind the rounded journal throughout the shared transition. */
+html[data-trip-transition]::view-transition-group(tabi-trip-cover) { z-index: 1; }
 html[data-trip-transition]::view-transition-group(tabi-trip-title) { z-index: 5; }
 html[data-trip-transition]::view-transition-group(tabi-trip-header) { z-index: 4; }
 html[data-trip-transition]::view-transition-group(tabi-trip-paper) { z-index: 2; }
@@ -27,7 +28,8 @@ html[data-trip-transition="close"]::view-transition-image-pair(tabi-trip-cover) 
 }
 html[data-trip-transition]::view-transition-old(root) { animation: trip-page-out 100ms ease-out both; }
 html[data-trip-transition="open"]::view-transition-new(root) { animation: trip-list-in 180ms ease-out both; }
-html[data-trip-transition]::view-transition-new(tabi-trip-paper) { animation: trip-page-in 240ms 70ms cubic-bezier(.22, 1, .36, 1) both; }
+/* The paper moves into place, but never fades through the photo underneath. */
+html[data-trip-transition]::view-transition-new(tabi-trip-paper) { opacity: 1; animation: trip-page-in 240ms cubic-bezier(.22, 1, .36, 1) both; }
 html[data-trip-transition]::view-transition-old(tabi-trip-paper),
 html[data-trip-transition]::view-transition-old(tabi-trip-header) { animation: trip-page-out 100ms ease-out both; }
 html[data-trip-transition]::view-transition-new(tabi-trip-header) { animation: trip-list-in 180ms 70ms ease-out both; }
@@ -35,7 +37,7 @@ html[data-trip-transition="close"]::view-transition-new(root) { animation: trip-
 html[data-trip-transition]::view-transition-old(tabi-trip-title),
 html[data-trip-transition]::view-transition-new(tabi-trip-title) { mix-blend-mode: normal; }
 @keyframes trip-page-out { to { opacity: 0; } }
-@keyframes trip-page-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes trip-page-in { from { transform: translateY(12px); } to { transform: none; } }
 @keyframes trip-list-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes trip-cover-open { from { border-radius: 24px 0 0 24px; } to { border-radius: 0; } }
 @keyframes trip-cover-close { from { border-radius: 0; } to { border-radius: 24px 0 0 24px; } }
