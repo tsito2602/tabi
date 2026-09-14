@@ -1,3 +1,4 @@
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { MotionTabs } from '@/components/motion-tabs';
 import { MotionPresence } from '@/components/motion-presence';
 import { bookingDurationLabel } from '@/data/booking-duration';
@@ -171,6 +172,7 @@ function timeZoneLabel(entry: TimelineEntry) {
 }
 
 export default function ItineraryScreen() {
+  const reduced = useReducedMotion();
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
 
@@ -239,8 +241,8 @@ export default function ItineraryScreen() {
 
   useEffect(() => {
     const frame = dateTabOffsets.current[visibleActiveDay];
-    if (frame) dateScrollRef.current?.scrollTo({ x: Math.max(0, frame.x - (dateViewport.current - frame.width) / 2), animated: true });
-  }, [visibleActiveDay]);
+    if (frame) dateScrollRef.current?.scrollTo({ x: Math.max(0, frame.x - (dateViewport.current - frame.width) / 2), animated: !reduced });
+  }, [visibleActiveDay, reduced]);
 
   const resumeScrollTracking = useCallback(() => {
     programmaticScrollDay.current = null;
@@ -261,9 +263,9 @@ export default function ItineraryScreen() {
       resumeScrollTracking();
       return;
     }
-    scrollRef.current?.scrollTo({ y: Math.max(0, sheetOffset.current + timelineOffset.current + offset - dayBarHeight - 10), animated: true });
+    scrollRef.current?.scrollTo({ y: Math.max(0, sheetOffset.current + timelineOffset.current + offset - dayBarHeight - 10), animated: !reduced });
     scrollTrackingTimer.current = setTimeout(resumeScrollTracking, 1000);
-  }, [dayBarHeight, resumeScrollTracking]);
+  }, [dayBarHeight, resumeScrollTracking, reduced]);
 
   const scrollToRequestedDay = useCallback(() => {
     const date = pendingScrollDay.current;
