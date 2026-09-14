@@ -60,7 +60,7 @@ export function TripTopTabs({ tripId }: { tripId: string }) {
     catch (cause) { setDeleteError(cause instanceof Error ? cause.message : '削除できませんでした'); }
     finally { setDeleting(false); }
   };
-  return <View testID="trip-header" style={styles.shell}>
+  return <View testID="trip-header" style={[styles.shell, { paddingTop: insets.top }]}>
     <View testID="trip-header-inner" style={styles.inner}>
       <View style={styles.topRow}>
         <Pressable accessibilityRole="button" accessibilityLabel={managing ? 'しおりへ戻る' : '旅行一覧へ戻る'} onPress={() => managing ? router.replace({ pathname: '/trips/[tripId]/itinerary', params: { tripId } }) : router.replace('/')} testID="trip-back" style={styles.backButton}><Text style={styles.backMark}>‹</Text></Pressable>

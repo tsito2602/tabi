@@ -49,7 +49,8 @@ export default function TripLayout() {
       <SafeAreaView edges={['top']} style={{ flex: 1 }}>
         <TripHeroContext.Provider value={{ height: desktop ? headerHeight + 28 : heroHeight - insets.top, scrollY, setPinAt }}>
           <TripHeaderHeight.Provider value={headerHeight}>
-            <View style={{ position: 'absolute', top: insets.top, left: 0, right: 0, zIndex: 30 }} onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}><TripTopTabs tripId={tripId} /></View>
+            {/* Page offsets exclude the top inset already supplied by SafeAreaView. */}
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30 }} onLayout={(event) => setHeaderHeight(Math.max(0, event.nativeEvent.layout.height - insets.top))}><TripTopTabs tripId={tripId} /></View>
             <MotionPage key={pathname}><Slot /></MotionPage>
           </TripHeaderHeight.Provider>
         </TripHeroContext.Provider>
