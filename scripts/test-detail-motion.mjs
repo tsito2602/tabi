@@ -46,9 +46,9 @@ function fixture() {
   const sections = f.records.filter(record => record.element !== f.surface);
   assert.equal(sections.length, 4, 'header, title, time and note are semantic blocks');
   assert(sections.every(record => record.options.delay >= surfaceAnimation.options.duration), 'content waits for the surface');
-  assert(sections.every(record => record.frames[0].opacity === '0' && record.frames[0].transform.includes('10px')), 'all contents rise from below');
+  assert(sections.every(record => record.frames[0].opacity === '0' && record.frames[0].transform.includes('18px')), 'all contents rise from below');
   assert(sections.every(record => record.options.fill === 'both'), 'pending blocks do not flash before their delay');
-  assert(sections[1].options.delay < sections[2].options.delay);
+  assert(sections.every((record, index) => index === 0 || record.options.delay > sections[index - 1].options.delay), 'each item has a distinct entrance');
   assert(!sections.some(record => record.element.tagName === 'P'), 'nested paragraphs do not animate twice');
   assert.equal(f.records.find((record) => record.element === f.surface).frames[0].opacity, '1', 'the expanding surface stays opaque');
   await f.finish();
@@ -101,7 +101,10 @@ for (const supported of [true, false]) {
   f.motion.setOpen(true, false, () => {});
   assert.equal(detailContentBlocks(f.doc.querySelector('[data-testid="form-sheet-fill"]')).length, 34);
   const blocks = f.records.filter(record => record.element !== f.surface);
-  assert(Math.max(...blocks.map(record => record.options.delay)) <= 408, 'a long detail cannot queue seconds of delay');
+  const delays = blocks.map(record => record.options.delay);
+  assert(Math.max(...delays) <= 700, 'a long detail cannot queue seconds of delay');
+  assert.equal(new Set(delays).size, blocks.length, 'long details do not collapse the later items into one simultaneous entrance');
+  assert(delays.every((delay, index) => index === 0 || delay > delays[index - 1]), 'long details keep the visual reading order');
   assert.equal(f.doc.querySelector('h2').style.visibility, '');
   f.motion.suspend(); await f.finish();
   assert.equal(f.surface.hasAttribute('data-detail-motion'), false);

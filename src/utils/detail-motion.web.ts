@@ -2,6 +2,11 @@ import type { DetailOrigin, DetailRect } from './detail-origin';
 import { detailRect } from './detail-origin.web';
 
 const ease = 'cubic-bezier(.22, 1, .36, 1)';
+// A longer ease-out gives each item a visible glide and a soft, unhurried landing.
+const revealEase = 'cubic-bezier(.16, 1, .3, 1)';
+const revealDuration = 560;
+const revealStagger = 70;
+const maxRevealSpread = 420;
 const normal = { transform: 'translate3d(0px, 0px, 0px)', clipPath: 'inset(0px)', opacity: '1' };
 export function detailPose(from: DetailRect, to: DetailRect, radius: number) {
   const scale = Math.max(1, from.width / to.width, from.height / to.height);
@@ -55,8 +60,8 @@ export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, 
     generation++;
     animations.splice(0).forEach((animation) => animation.cancel());
   };
-  const play = (element: HTMLElement, frames: Keyframe[], duration: number, delay = 0) => {
-    const animation = element.animate(frames, { duration, delay, easing: ease, fill: 'both' });
+  const play = (element: HTMLElement, frames: Keyframe[], duration: number, delay = 0, easing = ease) => {
+    const animation = element.animate(frames, { duration, delay, easing, fill: 'both' });
     // Cancellation is expected when a close, edit or preference change wins.
     void animation.finished.catch(() => {});
     animations.push(animation);
@@ -117,12 +122,15 @@ export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, 
       // The opaque surface arrives first. No detached title/time copies fly
       // across the screen; all content appears where it will be read.
       play(surface, [open && first ? pose : start, open ? expanded : { ...pose, opacity: '0' }], duration);
+      // Compress long sequences evenly instead of clamping the item index:
+      // later items must still enter one by one, never all on the same frame.
+      const stagger = Math.min(revealStagger, maxRevealSpread / Math.max(1, blocks.length - 1));
       blocks.forEach((element, index) => {
-        const from = open && first ? { opacity: '0', transform: 'translate3d(0px, 10px, 0px)' } : states[index];
+        const from = open && first ? { opacity: '0', transform: 'translate3d(0px, 18px, 0px)' } : states[index];
         const to = open ? { opacity: '1', transform: 'translate3d(0px, 0px, 0px)' } : { opacity: '0', transform: 'translate3d(0px, 6px, 0px)' };
         // Bound the tail even for many sections. Closing/reopening never
         // waits for the entrance sequence to finish.
-        play(element, [from, to], open ? 220 : 120, open && first ? duration + Math.min(index, 4) * 32 : 0);
+        play(element, [from, to], open ? revealDuration : 120, open && first ? duration + index * stagger : 0, open ? revealEase : ease);
       });
       const work = [...animations];
       void Promise.allSettled(work.map((animation) => animation.finished)).then(() => {
