@@ -2,9 +2,13 @@ import type { DetailOrigin, DetailRect } from './detail-origin';
 import { detailRect } from './detail-origin.web';
 
 const ease = 'cubic-bezier(.22, 1, .36, 1)';
-// A longer ease-out gives each item a visible glide and a soft, unhurried landing.
-const revealEase = 'cubic-bezier(.16, 1, .3, 1)';
-const revealDuration = 560;
+// Position settles slowly; opacity has its own gentler onset so content floats
+// into view rather than becoming almost opaque on its first moving frames.
+const revealEase = 'cubic-bezier(.2, .9, .2, 1)';
+const revealDuration = 640;
+const revealFadeEase = 'cubic-bezier(.3, 0, .35, 1)';
+const revealFadeDuration = 420;
+const returnEase = 'cubic-bezier(.4, 0, .2, 1)';
 const revealStagger = 70;
 const maxRevealSpread = 420;
 const normal = { transform: 'translate3d(0px, 0px, 0px)', clipPath: 'inset(0px)', opacity: '1' };
@@ -115,22 +119,39 @@ export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, 
     const target = detailRect(surface);
     const expanded = { ...normal, clipPath: `inset(0px round ${win.getComputedStyle(surface).borderRadius || '24px'})` };
     const pose = live && origin ? detailPose(first ? origin.rect : live.rect, target, origin.radius) : { ...normal, transform: 'translate3d(0px, 16px, 0px)', opacity: '0' };
-    const duration = open ? 280 : 240;
+    const returning = !open && Boolean(live && origin);
+    const duration = open ? 280 : returning ? 420 : 240;
     const token = generation;
     let valid = true;
     try {
       // The opaque surface arrives first. No detached title/time copies fly
       // across the screen; all content appears where it will be read.
-      play(surface, [open && first ? pose : start, open ? expanded : { ...pose, opacity: '0' }], duration);
+      if (returning) {
+        // Invert the expansion while the surface is still visible. Only blend
+        // away after reaching the live origin, not throughout the contraction.
+        // Starting from the sampled pose also preserves a dragged/partial sheet.
+        play(surface, [
+          { ...start, offset: 0, easing: returnEase },
+          { ...pose, opacity: start.opacity, offset: .84, easing: 'ease-out' },
+          { ...pose, opacity: '0', offset: 1 },
+        ], duration, 0, 'linear');
+      } else {
+        play(surface, [open && first ? pose : start, open ? expanded : { ...pose, opacity: '0' }], duration);
+      }
       // Compress long sequences evenly instead of clamping the item index:
       // later items must still enter one by one, never all on the same frame.
       const stagger = Math.min(revealStagger, maxRevealSpread / Math.max(1, blocks.length - 1));
       blocks.forEach((element, index) => {
-        const from = open && first ? { opacity: '0', transform: 'translate3d(0px, 18px, 0px)' } : states[index];
-        const to = open ? { opacity: '1', transform: 'translate3d(0px, 0px, 0px)' } : { opacity: '0', transform: 'translate3d(0px, 6px, 0px)' };
-        // Bound the tail even for many sections. Closing/reopening never
-        // waits for the entrance sequence to finish.
-        play(element, [from, to], open ? revealDuration : 120, open && first ? duration + index * stagger : 0, open ? revealEase : ease);
+        const from = open && first ? { opacity: '0', transform: 'translate3d(0px, 20px, 0px)' } : states[index];
+        // Separate properties share a start time, not an ancestor animation.
+        // Closing cancels both tracks and samples their current combined pose.
+        if (open) {
+          const delay = first ? duration + index * stagger : 0;
+          play(element, [{ transform: from.transform }, { transform: normal.transform }], revealDuration, delay, revealEase);
+          play(element, [{ opacity: from.opacity }, { opacity: '1' }], revealFadeDuration, delay, revealFadeEase);
+        } else {
+          play(element, [from, { opacity: '0', transform: 'translate3d(0px, 8px, 0px)' }], 160, 0, returnEase);
+        }
       });
       const work = [...animations];
       void Promise.allSettled(work.map((animation) => animation.finished)).then(() => {

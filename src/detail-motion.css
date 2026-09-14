@@ -3,6 +3,9 @@
 .motion-overlay[data-presentation="detail"] [data-detail-motion] {
   opacity: 1;
   transform: none;
+  /* Keep an interpolable outline after entrance cleanup. `none` would make
+     the reverse clip jump rather than contract continuously to its origin. */
+  clip-path: inset(0px);
   filter: none;
   transition: none !important;
   animation: none !important;

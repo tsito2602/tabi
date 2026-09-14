@@ -43,10 +43,14 @@ function fixture() {
   f.motion.setOpen(true, false, () => completed++);
   assert.equal(f.doc.querySelectorAll('.detail-motion-label').length, 0, 'no detached title or time is created');
   const surfaceAnimation = f.records.find(record => record.element === f.surface);
-  const sections = f.records.filter(record => record.element !== f.surface);
+  const sections = f.records.filter(record => record.element !== f.surface && 'transform' in record.frames[0]);
+  const fades = f.records.filter(record => record.element !== f.surface && 'opacity' in record.frames[0]);
   assert.equal(sections.length, 4, 'header, title, time and note are semantic blocks');
   assert(sections.every(record => record.options.delay >= surfaceAnimation.options.duration), 'content waits for the surface');
-  assert(sections.every(record => record.frames[0].opacity === '0' && record.frames[0].transform.includes('18px')), 'all contents rise from below');
+  assert(sections.every(record => record.frames[0].transform.includes('20px')), 'all contents rise from below');
+  assert.equal(fades.length, sections.length, 'every item has an independent fade track');
+  assert(fades.every((record, index) => record.frames[0].opacity === '0' && record.options.delay === sections[index].options.delay), 'fade and slide start together');
+  assert(fades.every((record, index) => record.options.easing !== sections[index].options.easing && record.options.duration < sections[index].options.duration), 'opacity appears gently while position keeps settling');
   assert(sections.every(record => record.options.fill === 'both'), 'pending blocks do not flash before their delay');
   assert(sections.every((record, index) => index === 0 || record.options.delay > sections[index - 1].options.delay), 'each item has a distinct entrance');
   assert(!sections.some(record => record.element.tagName === 'P'), 'nested paragraphs do not animate twice');
@@ -100,7 +104,7 @@ for (const supported of [true, false]) {
   for (let i = 0; i < 30; i++) { const section = f.doc.createElement('section'); section.textContent = String(i); body.append(section); }
   f.motion.setOpen(true, false, () => {});
   assert.equal(detailContentBlocks(f.doc.querySelector('[data-testid="form-sheet-fill"]')).length, 34);
-  const blocks = f.records.filter(record => record.element !== f.surface);
+  const blocks = f.records.filter(record => record.element !== f.surface && 'transform' in record.frames[0]);
   const delays = blocks.map(record => record.options.delay);
   assert(Math.max(...delays) <= 700, 'a long detail cannot queue seconds of delay');
   assert.equal(new Set(delays).size, blocks.length, 'long details do not collapse the later items into one simultaneous entrance');
@@ -125,4 +129,37 @@ for (const supported of [true, false]) {
   assert.equal(f.doc.querySelector('h2').style.visibility, '', 'keyboard navigation exposes all content without waiting');
   f.close();
 }
-console.log('Detail motion: origin geometry, opaque surface, staged sections without shared labels, bounded delay, completion, interruption, deleted origin, reduced/unsupported motion and cleanup passed.');
+{
+  const f = fixture(); let closed = 0;
+  f.motion.setOpen(true, false, () => {});
+  const expandedFrom = f.records.find(record => record.element === f.surface).frames[0];
+  await f.finish();
+  const at = f.records.length;
+  f.motion.setOpen(false, false, () => closed++);
+  const exiting = f.records.slice(at), returning = exiting.find(record => record.element === f.surface);
+  assert.equal(returning.frames.length, 3, 'return has contraction followed by a short handoff');
+  assert.equal(returning.frames[1].transform, expandedFrom.transform, 'close targets the opening origin');
+  assert.equal(returning.frames[1].clipPath, expandedFrom.clipPath, 'close restores the same source outline');
+  assert.equal(returning.frames[1].opacity, returning.frames[0].opacity, 'surface stays visible through contraction');
+  assert.equal(returning.frames.at(-1).opacity, '0', 'only the origin handoff fades away');
+  assert.equal(returning.frames[1].offset, .84);
+  exiting.filter(record => record !== returning).forEach(record => record.finish()); await flush();
+  assert.equal(closed, 0, 'finishing the content must not unmount the returning surface');
+  returning.finish(); await flush(); assert.equal(closed, 1);
+  f.close();
+}
+{
+  const f = fixture(); let closed = 0;
+  f.motion.setOpen(true, false, () => {}); await f.finish();
+  // Model releasing the grip after pulling a sheet, not from its settled pose.
+  f.surface.style.transform = 'translate3d(0px, 140px, 0px) scale(.96)';
+  f.doc.querySelector('h2').style.opacity = '.35';
+  f.doc.querySelector('h2').style.transform = 'translate3d(0px, 9px, 0px)';
+  const at = f.records.length;
+  f.motion.setOpen(false, false, () => closed++);
+  const exit = f.records.slice(at);
+  assert.equal(exit.find(record => record.element === f.surface).frames[0].transform, 'translate3d(0px, 140px, 0px) scale(.96)', 'close continues from the finger position');
+  assert.equal(Number(exit.find(record => record.element.tagName === 'H2').frames[0].opacity), .35, 'partly revealed content cannot flash during a close');
+  await f.finish(); assert.equal(closed, 1); f.close();
+}
+console.log('Detail motion: floating stagger, opaque inverse contraction, handoff completion, interrupted/dragged close, fallback and cleanup passed.');
