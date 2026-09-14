@@ -1,11 +1,9 @@
-import { PropsWithChildren, useLayoutEffect, useRef } from 'react';
+import { PropsWithChildren } from 'react';
 
-// Router owns screen lifetimes. Animate the incoming section without retaining
-// an outgoing Slot that would subscribe to the new route a second time.
+// Router owns screen lifetimes. Do not retain a second live Slot or force a
+// synchronous layout just to start the incoming page's short, unblurred reveal.
 export function MotionPage({ children }: PropsWithChildren) {
-  const root = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => { if (root.current) { void root.current.offsetWidth; root.current.dataset.page = '2'; } }, []);
-  return <div ref={root} className="t-page-slide motion-page" data-page="1">
-    <div className="t-page" data-page-id="2" data-testid="route-transition">{children}</div>
+  return <div className="motion-page">
+    <div className="motion-page-content" data-testid="route-transition">{children}</div>
   </div>;
 }

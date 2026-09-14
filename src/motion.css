@@ -1,0 +1,107 @@
+/* App motion: spatial surfaces, quiet feedback, and no text blur on phones. */
+:root {
+  --motion-exit-ease: cubic-bezier(.4, 0, 1, 1);
+  --panel-open-dur: var(--duration-medium);
+  --panel-close-dur: var(--duration-fast);
+  --icon-swap-start-scale: .85;
+  --icon-swap-blur: 0px;
+  --toast-blur: 0px;
+  --toast-scale: 1;
+  --acc-expand: var(--duration-fast);
+  --acc-collapse: var(--duration-quick);
+  --check-draw: var(--duration-fast);
+}
+
+/* The backdrop fades once. Fading the wrapper as well made text and the
+   surface fade twice and created a flash when another modal was underneath. */
+.motion-overlay {
+  --motion-open-dur: var(--modal-open-dur);
+  --motion-close-dur: var(--modal-close-dur);
+  opacity: 1;
+  transition: none;
+  overflow: hidden;
+}
+.motion-overlay.is-open { opacity: 1; transition: none; }
+.motion-viewport { isolation: isolate; background-color: transparent !important; }
+.motion-viewport::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--motion-backdrop-color, rgba(24, 42, 54, .3));
+  opacity: 0;
+  transition: opacity var(--motion-close-dur) linear;
+}
+.motion-overlay.is-open .motion-viewport::before,
+.motion-overlay.motion-viewport.is-open::before {
+  opacity: 1;
+  transition-duration: var(--motion-open-dur);
+}
+.motion-overlay [data-motion-surface] {
+  opacity: 0;
+  filter: none;
+  transform: translateY(var(--distance-base)) scale(var(--scale-small));
+  transform-origin: center;
+  transition: transform var(--motion-close-dur) var(--motion-exit-ease), opacity var(--motion-close-dur) linear;
+}
+.motion-overlay[data-presentation="dropdown"] {
+  --motion-open-dur: var(--dropdown-open-dur);
+  --motion-close-dur: var(--dropdown-close-dur);
+}
+.motion-overlay[data-presentation="dropdown"] [data-motion-surface] {
+  transform: translateY(calc(-1 * var(--distance-micro))) scale(var(--scale-medium));
+  transform-origin: top right;
+}
+@media (max-width: 600px) {
+  .motion-overlay:is([data-presentation="sheet"], [data-presentation="detail"]) {
+    --motion-open-dur: var(--panel-open-dur);
+    --motion-close-dur: var(--panel-close-dur);
+  }
+  .motion-overlay:is([data-presentation="sheet"], [data-presentation="detail"]) [data-motion-surface] {
+    opacity: 1;
+    transform: translateY(calc(100% + env(safe-area-inset-bottom, 0px)));
+    transform-origin: bottom center;
+  }
+}
+@media (min-width: 1024px) {
+  .motion-overlay[data-presentation="detail"] {
+    --motion-open-dur: var(--panel-open-dur);
+    --motion-close-dur: var(--panel-close-dur);
+  }
+  .motion-overlay[data-presentation="detail"] [data-motion-surface] {
+    opacity: 1;
+    transform: translateX(100%);
+    transform-origin: right center;
+  }
+}
+.motion-overlay[data-presentation] [data-motion-surface].is-open {
+  opacity: 1;
+  transform: none;
+  transition-duration: var(--motion-open-dur);
+  transition-timing-function: var(--ease-smooth-out);
+}
+.motion-page-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  animation: motion-page-enter var(--duration-fast) var(--ease-smooth-out) both;
+}
+@keyframes motion-page-enter {
+  from { opacity: 0; transform: translateY(var(--distance-micro)); }
+  to { opacity: 1; transform: none; }
+}
+.motion-tabs > .t-tabs-pill {
+  transition: transform var(--tabs-dur) var(--tabs-ease), width var(--tabs-dur) var(--tabs-ease), height var(--tabs-dur) var(--tabs-ease), border-radius var(--tabs-dur) var(--tabs-ease);
+}
+/* Press-in is immediate; release has a little more settling time. Tabs keep
+   their geometry while the shared selection pill is moving underneath them. */
+[role="button"]:not([aria-disabled="true"]):active, button:not(:disabled):active {
+  transition-duration: var(--duration-micro);
+}
+.motion-tabs > [role="tab"]:active { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .motion-page-content { animation: none; }
+  .motion-overlay [data-motion-surface] { transform: none !important; }
+}
