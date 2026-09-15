@@ -2,7 +2,10 @@ import type { GestureResponderEvent } from 'react-native';
 import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { MotionTabs } from '@/components/motion-tabs';
+import { ItineraryArrivalRow } from '@/components/itinerary-arrival-row';
+import { cancelItineraryArrival, hasItineraryArrival, itineraryItemOffset, takeItineraryArrival } from '@/utils/itinerary-arrival';
 import { MotionPresence } from '@/components/motion-presence';
+import { BOOKING_STAGES, itineraryTimeline, type TimelineEntry } from '@/data/itinerary-timeline';
 import { bookingDurationLabel } from '@/data/booking-duration';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { useDesktop } from '@/hooks/use-desktop';
@@ -12,11 +15,11 @@ import { TripHero, useTripHero } from '@/components/trip-hero';
 import { useTripHeaderHeight } from '@/components/trip-header-context';
 import { BookingSheet } from '@/components/booking-sheet';
 import { ItineraryCategoryPicker, ItineraryFields } from '@/components/itinerary-fields';
-import { durationLabel, durationMinutes, emptyItineraryDetails, orderItineraryEntries, itemCategory, itemDetails, itemEndLabel, itineraryDetailsError, transportLabel, transportModes } from '@/data/itinerary';
+import { durationLabel, durationMinutes, emptyItineraryDetails, itemCategory, itemDetails, itemEndLabel, itineraryDetailsError, transportLabel, transportModes } from '@/data/itinerary';
 import { PlaceSheet } from '@/components/place-sheet';
 import { SymbolView } from 'expo-symbols';
 import { useLocalSearchParams } from 'expo-router';
-import { Fragment, type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ComponentProps, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -32,16 +35,6 @@ import type { Booking, BookingKind, ItineraryItem, ItineraryDetails } from '@/da
 import { useTravel } from '@/data/travel-provider';
 import { confirmDeletion } from '@/utils/confirm-deletion';
 
-const BOOKING_STAGES: Record<BookingKind, [string, string]> = {
-  flight: ['出発', '到着'],
-  hotel: ['チェックイン', 'チェックアウト'],
-  train: ['乗車', '到着'],
-  car: ['受取', '返却'],
-  restaurant: ['予約', '終了'],
-  ticket: ['利用', '終了'],
-  other: ['予約', '終了'],
-};
-
 type SymbolName = ComponentProps<typeof SymbolView>['name'];
 
 const BOOKING_ICONS: Record<BookingKind, SymbolName> = {
@@ -56,53 +49,6 @@ const BOOKING_ICONS: Record<BookingKind, SymbolName> = {
 
 const EMPTY_ICON: SymbolName = { ios: 'calendar', android: 'calendar_today', web: 'calendar_today' };
 const CONNECTION_ICON: SymbolName = { ios: 'clock', android: 'schedule', web: 'schedule' };
-
-type TimelineEntry = {
-  key: string;
-  day: string;
-  time: string;
-  title: string;
-  note: string;
-  item?: ItineraryItem;
-  booking?: Booking;
-  bookingStage?: string;
-  bookingEndpoint?: 'start' | 'end';
-};
-
-function bookingNote(booking: Booking) {
-  if (booking.origin || booking.destination) {
-    return `${booking.originCode || booking.origin} → ${booking.destinationCode || booking.destination}`;
-  }
-  return booking.detail;
-}
-
-function bookingTimelineEntries(booking: Booking): TimelineEntry[] {
-  const [startStage, endStage] = BOOKING_STAGES[booking.kind];
-  const entries: TimelineEntry[] = [{
-    key: `booking-${booking.id}-start`,
-    day: booking.day,
-    time: booking.time,
-    title: booking.title,
-    note: bookingNote(booking),
-    booking,
-    bookingStage: startStage,
-    bookingEndpoint: 'start',
-  }];
-
-  if (booking.endTime && (booking.endDay !== booking.day || booking.endTime !== booking.time)) {
-    entries.push({
-      key: `booking-${booking.id}-end`,
-      day: booking.endDay || booking.day,
-      time: booking.endTime,
-      title: booking.title,
-      note: bookingNote(booking),
-      booking,
-      bookingStage: endStage,
-      bookingEndpoint: 'end',
-    });
-  }
-  return entries;
-}
 
 function datesBetween(start: string, end: string) {
   const dates: string[] = [];
@@ -186,7 +132,16 @@ export default function ItineraryScreen() {
   const [dayBarHeight, setDayBarHeight] = useState(60);
   const { height: windowHeight } = useWindowDimensions();
   const { canEdit, selectedTrip, items, places, bookings, createItem, updateItem, deleteItem, pendingCount } = useTravel();
-  const { itemId } = useLocalSearchParams<{ itemId?: string }>();
+  const params = useLocalSearchParams<{ itemId?: string | string[]; arrival?: string | string[] }>();
+  const itemId = Array.isArray(params.itemId) ? params.itemId[0] : params.itemId;
+  const arrival = Array.isArray(params.arrival) ? params.arrival[0] : params.arrival;
+  const tripId = selectedTrip?.id ?? '';
+  const requestedItem = useRef<string | null>(null);
+  const requestedArrival = useRef<{ tripId: string; itemId: string; token?: string } | null>(null);
+  const [arrivalRow, setArrivalRow] = useState<{ id: string; playing: boolean } | null>(null);
+  const requestedFrame = useRef(0);
+  const preparedRequest = useRef('');
+  const arrivalTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestedDay = items.find((item) => item.id === itemId)?.day;
   const pendingScrollDay = useRef<string | null>(null);
   const [viewingBookingId, setViewingBookingId] = useState<string | null>(null);
@@ -215,15 +170,15 @@ export default function ItineraryScreen() {
   const sheetOffset = useRef(0);
   const timelineOffset = useRef(0);
   const dayOffsets = useRef<Record<string, number>>({});
+  const dateBodyOffsets = useRef<Record<string, number>>({});
+  const itemOffsets = useRef<Record<string, { day: string; y: number }>>({});
+  const layoutReady = useRef({ sheet: false, timeline: false });
   const programmaticScrollDay = useRef<string | null>(null);
   const scrollTrackingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flightConnections = useMemo(() => findFlightConnections(bookings), [bookings]);
   const connectionByArrival = useMemo(() => new Map(flightConnections.map((connection) => [connection.arrivalBookingId, connection])), [flightConnections]);
 
-  const timeline = orderItineraryEntries([
-    ...items.map<TimelineEntry>((item) => ({ key: `item-${item.id}`, day: item.day, time: item.time, title: places.find((place) => place.itineraryItemId === item.id)?.title ?? item.title, note: item.note, item })),
-    ...bookings.flatMap(bookingTimelineEntries),
-  ]);
+  const timeline = itineraryTimeline(items, bookings, places);
   // Continue a layover rail only when the next visible event is that flight.
   // A manually selected later departure must not appear attached to an
   // unrelated flight or plan that falls between the two endpoints.
@@ -256,9 +211,18 @@ export default function ItineraryScreen() {
 
   useEffect(() => () => {
     if (scrollTrackingTimer.current) clearTimeout(scrollTrackingTimer.current);
+    cancelAnimationFrame(requestedFrame.current);
+    if (arrivalTimeout.current) clearTimeout(arrivalTimeout.current);
   }, []);
 
   const scrollToDay = useCallback((date: string) => {
+    pendingScrollDay.current = null;
+    requestedItem.current = null;
+    cancelItineraryArrival(requestedArrival.current?.token);
+    requestedArrival.current = null;
+    cancelAnimationFrame(requestedFrame.current);
+    if (arrivalTimeout.current) clearTimeout(arrivalTimeout.current);
+    setArrivalRow(null);
     const offset = dayOffsets.current[date];
     resumeScrollTracking();
     programmaticScrollDay.current = date;
@@ -273,16 +237,71 @@ export default function ItineraryScreen() {
 
   const scrollToRequestedDay = useCallback(() => {
     const date = pendingScrollDay.current;
-    if (!date || dayOffsets.current[date] === undefined) return;
+    const id = requestedItem.current;
+    if (!date || !id) return;
+    const row = itemOffsets.current[id];
+    const y = itineraryItemOffset(
+      layoutReady.current.sheet ? sheetOffset.current : undefined,
+      layoutReady.current.timeline ? timelineOffset.current : undefined,
+      dayOffsets.current[date], dateBodyOffsets.current[date], row?.day === date ? row.y : undefined, dayBarHeight);
+    if (y === undefined || !scrollRef.current) return;
     pendingScrollDay.current = null;
-    scrollToDay(date);
-  }, [scrollToDay]);
+    requestedItem.current = null;
+    if (arrivalTimeout.current) clearTimeout(arrivalTimeout.current);
+    const request = requestedArrival.current;
+    const entering = Boolean(request && takeItineraryArrival(request.tripId, id, request.token));
+    requestedArrival.current = null;
+    resumeScrollTracking();
+    programmaticScrollDay.current = date;
+    setActiveDay(date);
+    // Arrive at the real slot before revealing the item. No long journey
+    // through unrelated days, no guessed offsets and no duplicated live card.
+    scrollRef.current.scrollTo({ y, animated: entering ? false : !reduced });
+    setArrivalRow(entering ? { id, playing: true } : null);
+    scrollTrackingTimer.current = setTimeout(resumeScrollTracking, 1000);
+  }, [dayBarHeight, reduced, resumeScrollTracking]);
 
-  useEffect(() => {
+  const scheduleRequestedScroll = useCallback(() => {
+    cancelAnimationFrame(requestedFrame.current);
+    requestedFrame.current = requestAnimationFrame(scrollToRequestedDay);
+  }, [scrollToRequestedDay]);
+
+  useLayoutEffect(() => {
+    const key = JSON.stringify([tripId, itemId, arrival]);
+    if (preparedRequest.current === key && requestedDay) {
+      // Follow a moved item only while this request is still pending; a later
+      // shared edit must not pull the reader away from their current position.
+      if (requestedItem.current === itemId) pendingScrollDay.current = requestedDay;
+      scheduleRequestedScroll();
+      return;
+    }
+    if (!requestedDay) cancelItineraryArrival(requestedArrival.current?.token);
+    preparedRequest.current = itemId && requestedDay ? key : '';
     pendingScrollDay.current = requestedDay ?? null;
-    const frame = requestAnimationFrame(scrollToRequestedDay);
-    return () => cancelAnimationFrame(frame);
-  }, [itemId, requestedDay, scrollToRequestedDay]);
+    requestedItem.current = requestedDay && itemId ? itemId : null;
+    const fresh = Boolean(itemId && requestedDay && hasItineraryArrival(tripId, itemId, arrival));
+    requestedArrival.current = fresh ? { tripId, itemId: itemId!, token: arrival } : null;
+    setArrivalRow(fresh ? { id: itemId!, playing: false } : null);
+    if (arrivalTimeout.current) clearTimeout(arrivalTimeout.current);
+    if (fresh) arrivalTimeout.current = setTimeout(() => {
+      cancelItineraryArrival(arrival);
+      requestedArrival.current = null;
+      setArrivalRow(null);
+    }, 1200);
+    scheduleRequestedScroll();
+    return () => cancelAnimationFrame(requestedFrame.current);
+  }, [tripId, itemId, arrival, requestedDay, scheduleRequestedScroll]);
+
+  const interruptArrival = () => {
+    pendingScrollDay.current = null;
+    requestedItem.current = null;
+    requestedArrival.current = null;
+    cancelAnimationFrame(requestedFrame.current);
+    cancelItineraryArrival(arrival);
+    if (arrivalTimeout.current) clearTimeout(arrivalTimeout.current);
+    setArrivalRow(null);
+    resumeScrollTracking();
+  };
 
   const trackVisibleDay = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     hero?.scrollY.setValue(Math.max(0, event.nativeEvent.contentOffset.y));
@@ -369,10 +388,10 @@ export default function ItineraryScreen() {
         testID="itinerary-scroll" style={{ marginTop: headerHeight + (desktop ? 98 : 0), marginLeft: desktop ? 200 : 0 }}
         stickyHeaderIndices={[1]}
         contentContainerStyle={styles.scrollContent}
-        onContentSizeChange={scrollToRequestedDay}
+        onContentSizeChange={scheduleRequestedScroll}
         onMomentumScrollEnd={resumeScrollTracking}
         onScroll={trackVisibleDay}
-        onScrollBeginDrag={resumeScrollTracking}
+        onScrollBeginDrag={interruptArrival}
         ref={scrollRef}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
@@ -392,21 +411,21 @@ export default function ItineraryScreen() {
             })}
           </MotionTabs></ScrollView> : null}
         </View>
-        <View onLayout={(event) => { sheetOffset.current = event.nativeEvent.layout.y; }} style={[styles.journalBody, { minHeight: windowHeight - headerHeight }]}>
+        <View onLayout={(event) => { sheetOffset.current = event.nativeEvent.layout.y; layoutReady.current.sheet = true; scheduleRequestedScroll(); }} style={[styles.journalBody, { minHeight: windowHeight - headerHeight }]}>
         <View style={[styles.content, { paddingBottom: Math.max(128, windowHeight - headerHeight - dayBarHeight - 100) }]}>
         {pendingCount ? <Text style={styles.pending}>{pendingCount}件を端末に保存済み · オンライン時に同期</Text> : null}
 
         {!selectedTrip ? (
           <View style={styles.empty}><Text style={styles.emptyTitle}>旅行がありません</Text><Text style={styles.emptyBody}>旅行一覧から旅行を選択してください。</Text></View>
-        ) : <View onLayout={(event) => { timelineOffset.current = event.nativeEvent.layout.y; }} style={styles.timeline}>{itineraryDates.map((date, dayIndex) => {
+        ) : <View onLayout={(event) => { timelineOffset.current = event.nativeEvent.layout.y; layoutReady.current.timeline = true; scheduleRequestedScroll(); }} style={styles.timeline}>{itineraryDates.map((date, dayIndex) => {
           const dateItems = grouped[date] ?? [];
           return (
-            <View key={date} onLayout={(event) => { dayOffsets.current[date] = event.nativeEvent.layout.y; }} style={styles.daySection}>
+            <View key={date} onLayout={(event) => { dayOffsets.current[date] = event.nativeEvent.layout.y; scheduleRequestedScroll(); }} style={styles.daySection}>
               <View style={[styles.dateBar, dayIndex > 0 && styles.dateBarDivider]}>
                 <Text numberOfLines={1} style={styles.date}>{longDate(date)}</Text>
                 <Text style={styles.dateDay}>DAY {String(dayIndex + 1).padStart(2, '0')}</Text>
               </View>
-              {dateItems.length ? <View>
+              {dateItems.length ? <View onLayout={(event) => { dateBodyOffsets.current[date] = event.nativeEvent.layout.y; scheduleRequestedScroll(); }}>
                   {dateItems.map((entry, entryIndex) => {
                     const details = entry.item ? [itemCategory(entry.item).label, ...(itemDetails(entry.item).location ? [itemDetails(entry.item).location] : [])] : [...bookingDetails(entry), entry.booking?.kind === 'flight' ? '' : bookingDurationLabel(entry.booking!)].filter(Boolean);
                     const isTransport = entry.item && itemDetails(entry.item).category === 'transport';
@@ -419,7 +438,14 @@ export default function ItineraryScreen() {
                     const connection = isLinkedEnd && entry.booking ? connectionByArrival.get(entry.booking.id) : undefined;
                     const isConnectedDeparture = entry.bookingEndpoint === 'start' && Boolean(entry.booking && connectedDepartures.has(entry.booking.id));
                     return (
-                    <Fragment key={entry.key}>
+                    <ItineraryArrivalRow key={entry.key} reduced={reduced} testID={`itinerary-entry-${entry.key}`}
+                      waiting={Boolean(entry.item && arrivalRow?.id === entry.item.id && !arrivalRow.playing)}
+                      entering={Boolean(entry.item && arrivalRow?.id === entry.item.id && arrivalRow.playing)}
+                      onInterrupt={interruptArrival}
+                      onLayout={(event) => {
+                        if (entry.item) itemOffsets.current[entry.item.id] = { day: date, y: event.nativeEvent.layout.y };
+                        scheduleRequestedScroll();
+                      }}>
                     {isTransport ? <TransportRow item={entry.item!} hasPrevious={Boolean(previous)} hasNext={Boolean(next)} onPress={(event) => { setDetailOrigin(captureDetailOrigin(event)); setViewingItemId(entry.item!.id); }} /> : <Pressable
                       accessibilityHint={entry.booking ? '予約の詳細を開きます' : '予定の詳細を開きます'}
                       accessibilityRole="button"
@@ -455,7 +481,7 @@ export default function ItineraryScreen() {
                     {connection ? <ConnectionRow disabled={!canEdit} connection={connection} continueRail={connectedDepartures.has(connection.departureBookingId)} nextFlight={bookings.find((flight) => flight.id === connection.departureBookingId)} onPress={(event) => { setConnectionOrigin(captureDetailOrigin(event)); setConnectionBookingId(connection.arrivalBookingId); }} />
                       : canEdit && isLinkedEnd && entry.booking?.kind === 'flight' && hasLikelyFlightConnection(entry.booking, bookings)
                         ? <View style={styles.connectionAction}><FlightConnectionLink compact booking={entry.booking} onPress={(event) => { setConnectionOrigin(captureDetailOrigin(event)); setConnectionBookingId(entry.booking!.id); }} /></View> : null}
-                    </Fragment>
+                    </ItineraryArrivalRow>
                     );
                   })}
                 </View> : <View style={styles.emptyRow}>

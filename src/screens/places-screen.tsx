@@ -6,17 +6,16 @@ import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useMemo, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ItineraryCategoryPicker } from '@/components/itinerary-fields';
-import { emptyItineraryDetails } from '@/data/itinerary';
+import { PlacePlanSheet } from '@/components/place-plan-sheet';
+import { queueItineraryArrival } from '@/utils/itinerary-arrival';
 import { PlaceStatusIcon } from '@/components/place-status-icon';
 import { FormSheet } from '@/components/form-sheet';
 import { FloatingAddButton } from '@/components/floating-add-button';
 import { mono, type Palette } from '@/constants/design';
 import { useTravel } from '@/data/travel-provider';
-import type { ItineraryCategory, Place, PlaceStatus } from '@/data/types';
+import type { Place, PlaceStatus } from '@/data/types';
 import { mapUrl, placeStatuses, reservationStatuses } from '@/data/places';
 import { PlaceSheet } from '@/components/place-sheet';
-import { DateRangePicker } from '@/components/date-range-picker';
 import { useToast } from '@/components/toast';
 import { useTripHeaderHeight } from '@/components/trip-header-context';
 
@@ -26,7 +25,7 @@ export default function PlacesScreen() {
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
 
-  const { canEdit, places, items, updatePlace, selectedTrip, createItem } = useTravel();
+  const { canEdit, places, items, updatePlace, selectedTrip } = useTravel();
   const toast = useToast();
   const router = useRouter();
   const headerHeight = useTripHeaderHeight();
@@ -35,16 +34,13 @@ export default function PlacesScreen() {
   const [editing, setEditing] = useState<Place | 'new' | null>(null);
   const [statusPlace, setStatusPlace] = useState<Place | null>(null);
   const [planning, setPlanning] = useState<Place | null>(null);
-  const [day, setDay] = useState('');
-  const [category, setCategory] = useState<ItineraryCategory>('sightseeing');
   const filtered = useMemo(() => places.filter((place) => (filter === 'all' || place.status === filter) && `${place.title} ${place.note} ${place.location}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())), [places, filter, search]);
   const open = (event: GestureResponderEvent, place?: Place) => { setDetailOrigin(captureDetailOrigin(event)); setEditing(place ?? 'new'); };
-  const plan = () => {
-    if (!planning || !day || !canEdit) return;
-    if (items.some((item) => item.id === planning.itineraryItemId)) { setPlanning(null); return; }
-    const itineraryItemId = createItem({ title: planning.title, day, time: '', kind: '予定', note: '', details: emptyItineraryDetails(category) });
-    updatePlace(planning.id, { ...planning, itineraryItemId, status: planning.status === 'visited' ? 'visited' : 'planned' });
-    toast('しおりに追加しました'); setPlanning(null);
+  const finishPlanning = (tripId: string, itemId: string, inserted: boolean) => {
+    const arrival = inserted ? queueItineraryArrival(tripId, itemId) : undefined;
+    setPlanning(null);
+    if (inserted) toast('しおりに追加しました');
+    router.push({ pathname: '/trips/[tripId]/itinerary', params: { tripId, itemId, ...(arrival ? { arrival } : {}) } });
   };
   return <View style={styles.screen}>
     <ScrollView testID="places-scroll" contentContainerStyle={[styles.content, { paddingTop: headerHeight + 24 }]} showsVerticalScrollIndicator={false}>
@@ -70,7 +66,7 @@ export default function PlacesScreen() {
               setActionOrigin(captureDetailOrigin(event));
               if (itineraryItem && selectedTrip) {
                 router.push({ pathname: '/trips/[tripId]/itinerary', params: { tripId: selectedTrip.id, itemId: itineraryItem.id } });
-              } else { setDay(selectedTrip?.startsOn ?? ''); setCategory('sightseeing'); setPlanning(place); }
+              } else { setPlanning(place); }
             }} style={styles.action}><SymbolView name={itineraryItem ? { ios: 'book', android: 'menu_book', web: 'menu_book' } : { ios: 'calendar.badge.plus', android: 'event', web: 'event' }} size={16} tintColor={palette.ocean} /><Text style={styles.actionText}>{itineraryItem ? 'しおりを見る' : 'しおりへ'}</Text></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel={`${place.title}の地図を開く`} onPress={() => { const url = mapUrl(place.location, place.title); if (url) void Linking.openURL(url); }} style={styles.action}><SymbolView name={{ ios: 'map', android: 'map', web: 'map' }} size={16} tintColor={palette.ocean} /><Text style={styles.actionText}>地図</Text></Pressable></View>
           </View>
         </View>;
@@ -82,10 +78,10 @@ export default function PlacesScreen() {
       setEditing(null);
       const item = items.find((entry) => entry.id === place.itineraryItemId);
       if (item && selectedTrip) router.push({ pathname: '/trips/[tripId]/itinerary', params: { tripId: selectedTrip.id, itemId: item.id } });
-      else { setDay(selectedTrip?.startsOn ?? ''); setCategory('sightseeing'); setPlanning(place); }
+      else { setPlanning(place); }
     } : undefined} /> : null}</MotionPresence>
     <MotionPresence>{statusPlace ? <FormSheet detailOrigin={actionOrigin} visible title="ステータスを変更" onClose={() => setStatusPlace(null)}><Text style={styles.placeTitle}>{statusPlace.title}</Text>{placeStatuses.map((entry) => <Pressable accessibilityRole="button" key={entry.value} disabled={!canEdit} onPress={() => { updatePlace(statusPlace.id, { ...statusPlace, status: entry.value }); setStatusPlace(null); }} style={[styles.option, statusPlace.status === entry.value && styles.filterSelected]}><PlaceStatusIcon status={entry.value} /><Text style={styles.optionText}>{entry.label}{statusPlace.status === entry.value ? '　✓' : ''}</Text></Pressable>)}</FormSheet> : null}</MotionPresence>
-    <MotionPresence>{planning ? <FormSheet detailOrigin={actionOrigin} visible title="しおりに追加" onClose={() => setPlanning(null)} onSave={canEdit ? plan : undefined} saveLabel="追加" canSave={Boolean(day)}><Text style={styles.placeTitle}>{planning.title}</Text><ItineraryCategoryPicker linkedPlace value={category} onChange={setCategory} /><DateRangePicker mode="single" startDate={day} endDate={day} label="訪問日" onChange={(range) => setDay(range.startDate)} /></FormSheet> : null}</MotionPresence>
+    <MotionPresence>{planning ? <PlacePlanSheet key={planning.id} detailOrigin={actionOrigin} placeId={planning.id} onClose={() => setPlanning(null)} onComplete={finishPlanning} /> : null}</MotionPresence>
   </View>;
 }
 const createStyles = (palette: Palette) => StyleSheet.create({

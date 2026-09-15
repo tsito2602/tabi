@@ -119,6 +119,8 @@ test('place itinerary actions follow actual additions across every status and pr
       '@/components/form-sheet': {}, '@/components/floating-add-button': { FloatingAddButton: () => null },
       '@/constants/design': {}, '@/data/places': placeData,
       '@/components/place-sheet': { PlaceSheet: () => null }, '@/components/date-range-picker': {},
+      '@/components/place-plan-sheet': { PlacePlanSheet: () => null },
+      '@/utils/itinerary-arrival': load('src/utils/itinerary-arrival.ts', {}),
       '@/components/toast': { useToast: () => noop },
       '@/components/trip-header-context': { useTripHeaderHeight: () => 0 },
       '@/components/itinerary-fields': { ItineraryCategoryPicker: () => null },
@@ -159,5 +161,46 @@ test('shared place sheet shows current source details from either entry point an
     assert.equal(html.includes('日時を編集'), fromItinerary && canEdit);
     assert.equal(html.includes('時刻未定'), fromItinerary);
     assert.equal(html.includes('しおりを見る'), !fromItinerary);
+  }
+});
+
+test('place planning previews real day entries, keeps source data and navigates only after saving', () => {
+  const itinerary = load('src/data/itinerary.ts', {}), dates = load('src/utils/dates.ts', {});
+  const timeline = load('src/data/itinerary-timeline.ts', { './itinerary': itinerary });
+  const planning = load('src/data/place-plan.ts', { './itinerary': itinerary, '../utils/dates': dates });
+  const trip = { id: 'trip', startsOn: '2026-11-23', endsOn: '2026-11-25' };
+  const source = { id: 'place', title: '美術館', note: '展示メモ', status: 'want', location: '', openingHours: '', reservationStatus: 'not_needed' };
+  for (const canEdit of [true, false]) for (const added of [true, false]) {
+    let sheetProps;
+    const calls = [];
+    const items = [
+      { id: 'morning', title: '朝食', day: trip.startsOn, time: '09:00', note: '', kind: '予定' },
+      ...(added ? [{ id: 'already', title: source.title, day: '2026-11-24', time: '14:00', note: '', kind: '予定' }] : []),
+    ];
+    const place = { ...source, ...(added ? { itineraryItemId: 'already' } : {}) };
+    const { PlacePlanSheet } = load('src/components/place-plan-sheet.tsx', {
+      '@/theme/theme-provider': theme, 'react-native': native, '@/constants/design': {},
+      '@/components/date-range-picker': { DateRangePicker: () => null },
+      '@/components/itinerary-fields': { ItineraryCategoryPicker: () => null },
+      '@/components/form-sheet': { FormSheet: (props) => { sheetProps = props; return React.createElement('section', null, props.children); } },
+      '@/data/itinerary-timeline': timeline, '@/data/place-plan': planning, '@/utils/dates': dates,
+      '@/data/travel-provider': { useTravel: () => ({ selectedTrip: trip, canEdit, places: [place], items, bookings: [],
+        createItem: (input) => { calls.push(['create', input]); return 'created'; },
+        updatePlace: (id, input) => calls.push(['link', id, input]),
+      }) },
+    });
+    const html = renderToStaticMarkup(React.createElement(PlacePlanSheet, { placeId: source.id, onClose: noop, onComplete: (...args) => calls.push(['navigate', ...args]) }));
+    assert.equal(calls.length, 0, 'previewing is read-only');
+    assert.equal(sheetProps.canSave, added || canEdit);
+    assert.equal(html.includes('追加する予定'), !added);
+    assert(html.includes(dates.formatDate(added ? '2026-11-24' : trip.startsOn, true)), 'an externally linked item previews its actual day');
+    if (!added) assert(html.indexOf('朝食') < html.lastIndexOf('追加する予定'), 'untimed candidate follows the timed schedule');
+    if (added || canEdit) {
+      sheetProps.onSave(); sheetProps.onSave();
+      assert.equal(calls.filter(c => c[0] === 'navigate').length, 1, 'repeat save taps cannot repeat navigation');
+      assert.equal(calls.filter(c => c[0] === 'create').length, added ? 0 : 1);
+      assert.equal(calls.filter(c => c[0] === 'link').length, added ? 0 : 1);
+      assert.equal(calls.at(-1)[3], !added, 'only a newly created item carries the arrival signal');
+    }
   }
 });
