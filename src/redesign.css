@@ -172,11 +172,11 @@ input, textarea, select { caret-color: var(--ocean); }
 [data-plan-enabled] [data-testid="planner-toggle"] > *::after { content: '完了'; }
 @media (max-width: 1023px) {
   [data-testid="itinerary-intro"] > div:last-child > div > div { padding-right: 94px !important; }
-  [data-testid="itinerary-day-bar"] > div:first-child {
+  .planner-root:not([data-plan-enabled]) [data-testid="itinerary-day-bar"] > div:first-child {
     position: relative !important; height: 0 !important; min-height: 0 !important;
     padding: 0 !important; overflow: visible !important;
   }
-  [data-testid="itinerary-day-bar"] > div:first-child > :first-child { display: none !important; }
+  .planner-root:not([data-plan-enabled]) [data-testid="itinerary-day-bar"] > div:first-child > :first-child { display: none !important; }
   [data-testid="planner-toggle"] {
     position: absolute !important; right: 20px; top: -50px; z-index: 8;
     min-height: 36px !important; padding: 7px 12px !important;
@@ -238,4 +238,11 @@ input, textarea, select { caret-color: var(--ocean); }
 @media (prefers-reduced-motion: reduce) {
   [data-testid="trip-workspace"] .motion-page-content { animation: none; }
   [data-testid="trip-tabs"] .t-tabs-pill { transition: none; }
+}
+
+/* The planner uses a real modal, with its own full-width surface on desktop too. */
+#planner-editor-viewport { align-items: stretch !important; padding: 0 !important; }
+#planner-editor-viewport > [data-testid="form-sheet"] {
+  width: 100% !important; max-width: none !important; height: 100%;
+  border-radius: 0 !important; box-shadow: none !important;
 }

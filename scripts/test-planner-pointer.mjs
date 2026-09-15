@@ -46,7 +46,7 @@ function fixture() {
     hidden: false, body,
     defaultView: null,
     elementFromPoint() { return point; },
-    querySelector() { return null; },
+    querySelectorAll() { return []; },
     addEventListener(name, fn) { listeners.set(`doc:${name}`, fn); }, removeEventListener() {},
   };
   const win = {
@@ -139,4 +139,19 @@ test('mouse movement on an existing scheduled item starts without waiting for ho
   f.emit('pointerdown', pointer(target, 10, 10, { pointerType: 'mouse' }));
   f.emit('pointermove', pointer(target, 28, 12, { pointerType: 'mouse' }));
   assert.equal(f.calls[0]?.[0], 'start'); f.cleanup();
+});
+
+
+test('the fullscreen editor allows dragging, while a nested modal blocks it', () => {
+  const f = fixture(), { target } = candidate(f);
+  const editor = element(); f.root.parent = editor;
+  f.doc.querySelectorAll = () => [editor];
+  f.emit('pointerdown', pointer(target, 20, 30)); f.fireHold();
+  assert.equal(f.calls.filter(call => call[0] === 'start').length, 1);
+  f.emit('pointercancel', pointer(target, 20, 30));
+  const nestedModal = element();
+  f.doc.querySelectorAll = () => [editor, nestedModal];
+  f.emit('pointerdown', pointer(target, 20, 30)); f.fireHold();
+  assert.equal(f.calls.filter(call => call[0] === 'start').length, 1);
+  f.cleanup();
 });

@@ -46,6 +46,10 @@ export function attachPlannerPointer(root: HTMLElement, callbacks: Callbacks, lo
   let active: ActivePointer | undefined;
   let ghost: HTMLElement | undefined, over: HTMLElement | undefined, lifted: HTMLElement | undefined;
   let dayHover = '', dayAt = 0, activatedDay = '';
+  // The editor itself is a modal. Only another active modal blocks dragging.
+  const blockedByModal = () => Boolean(root.closest('[aria-hidden="true"], [inert]'))
+    || [...doc.querySelectorAll<HTMLElement>('[aria-modal="true"]')].some(modal =>
+      !modal.contains(root) && !modal.closest('[aria-hidden="true"], [inert]'));
   const clearHold = () => { if (holdTimer !== undefined) win.clearTimeout(holdTimer); holdTimer = undefined; };
   const clear = () => {
     clearHold();
@@ -72,7 +76,7 @@ export function attachPlannerPointer(root: HTMLElement, callbacks: Callbacks, lo
   };
   const tick = (time: number) => {
     if (!active?.started) return;
-    if (!active.captureElement.isConnected || doc.querySelector('[aria-modal="true"]')) { cancel(); return; }
+    if (!active.captureElement.isConnected || blockedByModal()) { cancel(); return; }
     const { x, y, offsetX, offsetY, touch } = active;
     if (ghost) ghost.style.transform = `translate3d(${x - offsetX}px, ${y - offsetY - (touch ? 16 : 0)}px, 0)`;
     const hit = doc.elementFromPoint(x, y);
@@ -114,7 +118,7 @@ export function attachPlannerPointer(root: HTMLElement, callbacks: Callbacks, lo
     if (active) { if (event.pointerId !== active.id) cancel(); return; }
     if (!event.isPrimary || event.button !== 0 || !(event.target instanceof win.Element)) return;
     suppressedSource = undefined;
-    if (doc.querySelector('[aria-modal="true"]') || event.target.closest('input, textarea, select, a, [contenteditable="true"], [data-plan-no-drag]')) return;
+    if (blockedByModal() || event.target.closest('input, textarea, select, a, [contenteditable="true"], [data-plan-no-drag]')) return;
     const card = event.target.closest<HTMLElement>('[data-plan-card]');
     const directSource = event.target.closest<HTMLElement>('[data-plan-source]');
     // Existing itinerary items expose their source through the hidden keyboard

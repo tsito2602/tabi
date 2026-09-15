@@ -274,3 +274,15 @@ test('reduced motion keeps the arrival visible with no spatial animation', () =>
   assert.equal(tree.props.children[1].props.style.opacity, c.values[1]); assert.deepEqual(c.values.map(v => v.value), [1, 1, 1]);
   assert.deepEqual(c.timings.map(t => t.duration), [0, 0, 0]); assert.deepEqual(c.delays, [900]); c.r.unmount();
 });
+
+
+test('a dedicated editor starts enabled and stops when editing permission is lost', () => {
+  const r = harness(), f = travelFixture();
+  const load = loader({ react: r.hooks, '@/data/travel-provider': { useTravel: f.snapshot } });
+  const { useItineraryComposer } = load('src/hooks/use-itinerary-composer.ts');
+  const render = () => r.render(useItineraryComposer, { initiallyEnabled: true });
+  assert.equal(render().enabled, true);
+  f.data = { ...f.data, canEdit: false };
+  assert.equal(render().enabled, false);
+  r.unmount();
+});

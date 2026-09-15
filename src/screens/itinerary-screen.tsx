@@ -3,6 +3,8 @@ import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { ItineraryArrivalRow } from '@/components/itinerary-arrival-row';
 import { cancelItineraryArrival, hasItineraryArrival, itineraryItemOffset, takeItineraryArrival } from '@/utils/itinerary-arrival';
+import { MotionModal } from '@/components/motion-modal';
+import { useModalViewport } from '@/hooks/use-modal-viewport';
 import { MotionPresence } from '@/components/motion-presence';
 import { BOOKING_STAGES, itineraryTimeline, type TimelineEntry } from '@/data/itinerary-timeline';
 import { bookingDurationLabel } from '@/data/booking-duration';
@@ -24,7 +26,7 @@ import { PlaceSheet } from '@/components/place-sheet';
 import { SymbolView } from 'expo-symbols';
 import { useLocalSearchParams } from 'expo-router';
 import { type ComponentProps, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FormSheet } from '@/components/form-sheet';
@@ -124,8 +126,15 @@ function timeZoneLabel(entry: TimelineEntry) {
 }
 
 export default function ItineraryScreen() {
+  return <ItineraryContent />;
+}
+
+function ItineraryContent({ editor = false, initialDay, origin, onClose }: { editor?: boolean; initialDay?: string; origin?: DetailOrigin; onClose?: () => void }) {
   const reduced = useReducedMotion();
-  const composer = useItineraryComposer();
+  const composer = useItineraryComposer({ initiallyEnabled: editor });
+  const [editorRequest, setEditorRequest] = useState<{ tripId: string; day: string; origin?: DetailOrigin } | null>(null);
+  const editorViewport = useModalViewport(editor);
+  const initialEditorDay = useRef(initialDay);
   const [detailOrigin, setDetailOrigin] = useState<DetailOrigin>();
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
@@ -133,13 +142,14 @@ export default function ItineraryScreen() {
   const desktop = useDesktop();
   const toast = useToast();
   const headerHeight = useTripHeaderHeight();
-  const hero = useTripHero();
+  const tripHero = useTripHero();
+  const hero = editor ? null : tripHero;
   const [dayBarHeight, setDayBarHeight] = useState(60);
   const { height: windowHeight } = useWindowDimensions();
   const { canEdit, selectedTrip, items, places, bookings, createItem, updateItem, deleteItem, pendingCount } = useTravel();
   const params = useLocalSearchParams<{ itemId?: string | string[]; arrival?: string | string[] }>();
-  const itemId = Array.isArray(params.itemId) ? params.itemId[0] : params.itemId;
-  const arrival = Array.isArray(params.arrival) ? params.arrival[0] : params.arrival;
+  const itemId = editor ? undefined : Array.isArray(params.itemId) ? params.itemId[0] : params.itemId;
+  const arrival = editor ? undefined : Array.isArray(params.arrival) ? params.arrival[0] : params.arrival;
   const tripId = selectedTrip?.id ?? '';
   const requestedItem = useRef<string | null>(null);
   const requestedArrival = useRef<{ tripId: string; itemId: string; token?: string } | null>(null);
@@ -200,7 +210,7 @@ export default function ItineraryScreen() {
     ...(selectedTrip ? datesBetween(selectedTrip.startsOn, selectedTrip.endsOn) : []),
     ...Object.keys(grouped),
   ])].sort();
-  const [activeDay, setActiveDay] = useState(selectedTrip?.startsOn ?? '');
+  const [activeDay, setActiveDay] = useState(initialDay ?? selectedTrip?.startsOn ?? '');
   const visibleActiveDay = itineraryDates.includes(activeDay) ? activeDay : itineraryDates[0];
 
   useEffect(() => {
@@ -268,8 +278,14 @@ export default function ItineraryScreen() {
 
   const scheduleRequestedScroll = useCallback(() => {
     cancelAnimationFrame(requestedFrame.current);
-    requestedFrame.current = requestAnimationFrame(scrollToRequestedDay);
-  }, [scrollToRequestedDay]);
+    requestedFrame.current = requestAnimationFrame(() => {
+      const date = initialEditorDay.current;
+      if (date && layoutReady.current.sheet && layoutReady.current.timeline && dayOffsets.current[date] !== undefined) {
+        initialEditorDay.current = undefined;
+        scrollToDay(date);
+      } else scrollToRequestedDay();
+    });
+  }, [scrollToRequestedDay, scrollToDay]);
 
   useLayoutEffect(() => {
     const key = JSON.stringify([tripId, itemId, arrival]);
@@ -382,13 +398,17 @@ export default function ItineraryScreen() {
     });
   };
 
-  return (
+  const content = (
     <SafeAreaView style={styles.safeArea} edges={[]}>
+      {editor ? <View testID="planner-editor-header" style={styles.editorHeader}>
+        <Text accessibilityRole="header" style={styles.composerTitle}>しおりを編集</Text>
+        <ActionButton label="完了" disabled={composer.linkPending} onPress={() => { if (!composer.linkPending) onClose?.(); }} />
+      </View> : null}
       <PlannerDrag enabled={composer.enabled} source={composer.source} onSelect={composer.select} onDrop={composer.drop} onDay={scrollToDay}>
-      <View testID="planner-layout" style={{ flex: 1, minHeight: 0, marginTop: headerHeight, flexDirection: desktop ? 'row' : 'column' }}>
+      <View testID="planner-layout" style={{ flex: 1, minHeight: 0, marginTop: editor ? 0 : headerHeight, flexDirection: editor || !desktop ? 'column' : 'row' }}>
       <ScrollView
         testID="itinerary-scroll" style={{ flex: 1, minWidth: 0, minHeight: 0 }}
-        stickyHeaderIndices={[1]}
+        stickyHeaderIndices={[editor ? 0 : 1]}
         contentContainerStyle={styles.scrollContent}
         onContentSizeChange={scheduleRequestedScroll}
         onMomentumScrollEnd={resumeScrollTracking}
@@ -398,16 +418,16 @@ export default function ItineraryScreen() {
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         >
-        <View testID="itinerary-intro" onLayout={(event) => hero?.setPinAt(event.nativeEvent.layout.height)}>
+        {!editor ? <View testID="itinerary-intro" onLayout={(event) => hero?.setPinAt(event.nativeEvent.layout.height)}>
           {desktop && selectedTrip && hero ? <View testID="desktop-trip-cover" style={{ height: 260, overflow: 'hidden' }}><TripHero trip={selectedTrip} height={260} scrollY={hero.scrollY} /></View> : <View pointerEvents="none" style={{ height: Math.max(0, (hero?.height ?? headerHeight + 200) - headerHeight - 28) }} />}
           {!desktop ? <View style={styles.journalSheet}><View style={styles.content}><View style={styles.sheetIntro}><Text style={styles.journalLabel}>しおり</Text><Text style={styles.journalCount}>{itineraryDates.length}日間</Text></View></View></View> : null}
-        </View>
+        </View> : null}
         <View testID="itinerary-day-bar" onLayout={(event) => setDayBarHeight(event.nativeEvent.layout.height)} style={styles.dayNavSticky}>
-          <View style={styles.composerToolbar}>
-            <Text accessibilityRole="header" style={styles.composerTitle}>{composer.enabled ? '予定を組む' : 'しおり'}</Text>
-            {canEdit ? <ActionButton testID="planner-toggle" label={composer.enabled ? '編集を終える' : '予定を組む'} variant={composer.enabled ? 'primary' : 'secondary'} disabled={composer.linkPending}
-              onPress={() => { composer.toggle(); if (!composer.enabled && visibleActiveDay) requestAnimationFrame(() => scrollToDay(visibleActiveDay)); }} /> : null}
-          </View>
+          {!editor ? <View style={styles.composerToolbar}>
+            <Text accessibilityRole="header" style={styles.composerTitle}>しおり</Text>
+            {canEdit ? <ActionButton testID="planner-toggle" label="編集" variant="secondary"
+              onPress={event => { if (selectedTrip) setEditorRequest({ tripId, day: visibleActiveDay, origin: captureDetailOrigin(event) }); }} /> : null}
+          </View> : null}
           {composer.source ? <View style={styles.composerMessage}><Text accessibilityLiveRegion="polite" style={styles.composerCaption}>{composer.sourceTitle} · 配置先を選択</Text><ActionButton label="キャンセル" variant="quiet" onPress={composer.cancel} /></View> : null}
           {composer.notice ? <View style={styles.composerMessage}><Text accessibilityLiveRegion="polite" style={styles.composerCaption}>{composer.notice}</Text>{composer.canUndo ? <ActionButton label="取り消す" variant="quiet" onPress={composer.undo} /> : null}<ActionButton label="閉じる" variant="quiet" onPress={composer.dismissNotice} /></View> : null}
           {composer.error ? <View style={styles.composerMessage}><Text accessibilityRole="alert" style={[styles.composerCaption, { color: palette.danger }]}>{composer.error}</Text>{composer.linkPending ? <ActionButton label="再試行" onPress={composer.retry} /> : null}</View> : null}
@@ -498,7 +518,7 @@ export default function ItineraryScreen() {
         </View>
         </View>
       </ScrollView>
-      {composer.enabled ? <PlannerCandidates source={composer.source} onSelect={composer.select} onViewItem={(id) => {
+      {composer.enabled ? <PlannerCandidates disabled={composer.linkPending} source={composer.source} onSelect={composer.select} onViewItem={(id) => {
         const item = items.find(entry => entry.id === id);
         if (!item) return;
         interruptArrival(); requestedItem.current = id; pendingScrollDay.current = item.day; scheduleRequestedScroll();
@@ -513,6 +533,8 @@ export default function ItineraryScreen() {
 
       <MotionPresence>{isViewingItem && viewingPlace ? <PlaceSheet detailOrigin={detailOrigin} key={viewingPlace.id} place={viewingPlace} onClose={() => setViewingItemId(null)} onEditSchedule={() => openEdit(viewingItem!)} /> : null}</MotionPresence>
 
+      {!editor ? <MotionPresence>{editorRequest && editorRequest.tripId === tripId && canEdit ?
+        <ItineraryContent editor initialDay={editorRequest.day} origin={editorRequest.origin} onClose={() => setEditorRequest(null)} /> : null}</MotionPresence> : null}
       <FormSheet detailOrigin={detailOrigin} visible={adding || (Boolean(viewingItem) && !viewingPlace)} presentation={isViewingItem ? 'detail' : 'form'} title={isViewingItem ? '予定の詳細' : editingPlace ? '予定を編集' : editingId ? '予定を編集' : '予定を追加'} onClose={() => { if (isViewingItem) setViewingItemId(null); else closeEditor(); }} onSave={canEdit ? isViewingItem ? () => openEdit(viewingItem!) : save : undefined} saveLabel={isViewingItem ? '編集' : '保存'} canSave={isViewingItem || moving || Boolean(title.trim())} dirty={!isViewingItem && JSON.stringify([day, time, title, note, planDetails]) !== initialDraft} error={isViewingItem ? undefined : formError}>
         {isViewingItem && viewingItem ? <View testID="itinerary-item-details" style={styles.planDetails}>
           <Text style={styles.bookingTag}>{itemCategory(viewingItem).label}</Text>
@@ -544,6 +566,14 @@ export default function ItineraryScreen() {
       </FormSheet>
     </SafeAreaView>
   );
+  if (!editor) return content;
+  const close = () => { if (!composer.linkPending) onClose?.(); };
+  return <MotionModal detail detailOrigin={origin} visible transparent={Platform.OS === 'web'} presentationStyle="fullScreen"
+    animationType={reduced ? 'none' : 'slide'} onRequestClose={close}>
+    <View nativeID="planner-editor-viewport" testID="detail-modal-viewport" style={[styles.editorViewport, editorViewport]}>
+      <SafeAreaView testID="form-sheet" edges={['top', 'bottom']} style={styles.editorSurface}>{content}</SafeAreaView>
+    </View>
+  </MotionModal>;
 }
 
 function TransportRow({ item, hasPrevious, hasNext, onPress }: { item: ItineraryItem; hasPrevious: boolean; hasNext: boolean; onPress: NonNullable<ComponentProps<typeof Pressable>['onPress']> }) {
@@ -589,6 +619,9 @@ function ConnectionRow({ connection, continueRail, nextFlight, onPress, disabled
 
 const createStyles = (palette: Palette) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: 'transparent' },
+  editorViewport: { flex: 1, minHeight: 0, backgroundColor: palette.canvas },
+  editorSurface: { flex: 1, minHeight: 0, width: '100%', backgroundColor: palette.canvas, overflow: 'hidden' },
+  editorHeader: { flexDirection: 'row', flexShrink: 0, alignItems: 'center', justifyContent: 'space-between', minHeight: 64, paddingHorizontal: 20, gap: 12, backgroundColor: palette.paper, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.ash },
   composerToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 8, gap: 12 },
   composerTitle: { color: palette.ink, fontSize: 17, lineHeight: 24, fontWeight: '600' },
   composerMessage: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, gap: 8, paddingBottom: 6 },
