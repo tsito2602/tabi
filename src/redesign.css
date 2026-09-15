@@ -154,6 +154,34 @@ input, textarea, select { caret-color: var(--ocean); }
   position: absolute; right: 4px; top: 4px; z-index: 2;
   background: var(--paper); outline: 2px solid var(--ocean); outline-offset: -2px;
 }
+/* In edit mode, an existing itinerary card exposes its source through the
+   keyboard handle. The card itself therefore owns the touch gesture so a
+   stationary long press can lift it before any native scrolling starts. */
+[data-plan-enabled] .planner-card-frame:has(.planner-keyboard-handle:not(:disabled)) {
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+[data-plan-dragging] .planner-card-frame:has(.planner-keyboard-handle:not(:disabled)) { cursor: grabbing; }
+
+/* On mobile the editing affordance belongs to the journal summary, next to
+   the day count, rather than consuming a second toolbar above the day tabs. */
+[data-testid="planner-toggle"] > * { font-size: 0 !important; line-height: 0 !important; }
+[data-testid="planner-toggle"] > *::after {
+  content: '編集'; color: inherit; font-size: 14px; line-height: 20px; font-weight: 600;
+}
+[data-plan-enabled] [data-testid="planner-toggle"] > *::after { content: '完了'; }
+@media (max-width: 1023px) {
+  [data-testid="itinerary-intro"] > div:last-child > div > div { padding-right: 94px !important; }
+  [data-testid="itinerary-day-bar"] > div:first-child {
+    position: relative !important; height: 0 !important; min-height: 0 !important;
+    padding: 0 !important; overflow: visible !important;
+  }
+  [data-testid="itinerary-day-bar"] > div:first-child > :first-child { display: none !important; }
+  [data-testid="planner-toggle"] {
+    position: absolute !important; right: 20px; top: -50px; z-index: 8;
+    min-height: 36px !important; padding: 7px 12px !important;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   [data-testid="trip-workspace"] .motion-page-content { animation: none; }
   [data-testid="trip-tabs"] .t-tabs-pill { transition: none; }
