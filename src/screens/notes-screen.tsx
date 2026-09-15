@@ -1,3 +1,4 @@
+import type { GestureResponderEvent } from 'react-native';
 import { MotionModal } from '@/components/motion-modal';
 import { MotionPresence } from '@/components/motion-presence';
 import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
@@ -27,7 +28,7 @@ export default function NotesScreen() {
   const [editing, setEditing] = useState<TravelNote | null>(null);
   const [detailOrigin, setDetailOrigin] = useState<DetailOrigin>();
   const filtered = useMemo(() => notes.filter((note) => note.body.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id)), [notes, search]);
-  const add = () => { setDetailOrigin(undefined); setEditing({ id: Crypto.randomUUID(), body: '', pinned: false, updatedAt: Math.floor(Date.now() / 1000) }); };
+  const add = (event: GestureResponderEvent) => { setDetailOrigin(captureDetailOrigin(event)); setEditing({ id: Crypto.randomUUID(), body: '', pinned: false, updatedAt: Math.floor(Date.now() / 1000) }); };
   return <View style={styles.screen}>
     <ScrollView testID="notes-scroll" keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingTop: headerHeight + 24 }]}>
       {notes.length ? <TextInput accessibilityLabel="メモを検索" value={search} onChangeText={setSearch} placeholder="検索" placeholderTextColor={palette.placeholder} style={styles.search} /> : null}

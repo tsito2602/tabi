@@ -1,3 +1,5 @@
+import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
+import type { GestureResponderEvent } from 'react-native';
 import { MotionCheck } from '@/components/motion-check';
 import { MotionTabs } from '@/components/motion-tabs';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
@@ -57,6 +59,7 @@ export default function PackingScreen() {
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(blankTaskDraft);
   const [hasDueDate, setHasDueDate] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [detailOrigin, setDetailOrigin] = useState<DetailOrigin>();
   const [formError, setFormError] = useState('');
 
   const [filterSelection, setFilterSelection] = useState({ tripId: selectedTrip?.id, key: 'all' });
@@ -89,7 +92,8 @@ export default function PackingScreen() {
     setFormError('');
   };
 
-  const openCreate = () => {
+  const openCreate = (event: GestureResponderEvent) => {
+    setDetailOrigin(captureDetailOrigin(event));
     const assignee = activeFilter.filter.kind === 'assignee' ? activeFilter.filter.value : '';
     const packing = { ...blankPackingDraft(), assignee, shared: activeFilter.filter.kind === 'shared' };
     const task = { ...blankTaskDraft(), assignee };
@@ -102,7 +106,8 @@ export default function PackingScreen() {
     setFormOpen(true);
   };
 
-  const openPackingEdit = (item: PackingItem) => {
+  const openPackingEdit = (item: PackingItem, event: GestureResponderEvent) => {
+    setDetailOrigin(captureDetailOrigin(event));
     setEditingId(item.id);
     const draft = { name: item.name, category: item.category, quantity: item.quantity, packed: item.packed, assignee: item.assignee ?? '', shared: item.shared ?? false };
     setInitialDraft(JSON.stringify(draft));
@@ -111,7 +116,8 @@ export default function PackingScreen() {
     setFormOpen(true);
   };
 
-  const openTaskEdit = (task: TravelTask) => {
+  const openTaskEdit = (task: TravelTask, event: GestureResponderEvent) => {
+    setDetailOrigin(captureDetailOrigin(event));
     setEditingId(task.id);
     const draft = { title: task.title, dueOn: task.dueOn, assignee: task.assignee, done: task.done };
     setInitialDraft(JSON.stringify([draft, Boolean(task.dueOn)]));
@@ -188,13 +194,13 @@ export default function PackingScreen() {
           style={[styles.check, task.done && styles.checkDone]}>
           <MotionCheck checked={task.done} />
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${task.title}を編集`} disabled={!canEdit} onPress={() => openTaskEdit(task)} style={({ pressed }) => [styles.rowCopy, pressed && styles.pressed]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${task.title}を編集`} disabled={!canEdit} onPress={(event) => openTaskEdit(task, event)} style={({ pressed }) => [styles.rowCopy, pressed && styles.pressed]}>
           <View style={styles.itemCopy}>
             <Text style={[styles.itemName, task.done && styles.itemDone]}>{task.title}</Text>
             {metadata ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>{task.assignee ? <MemberAvatar name={assigneeName(task.assignee, members)} avatarUrl={assignedMember(task.assignee, members)?.avatarUrl} size={20} /> : null}<Text style={[styles.itemMeta, { flexShrink: 1 }]}>{metadata}</Text></View> : null}
           </View>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${task.title}を編集`} hitSlop={8} disabled={!canEdit} onPress={() => openTaskEdit(task)}><Text style={styles.editMark}>•••</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${task.title}を編集`} hitSlop={8} disabled={!canEdit} onPress={(event) => openTaskEdit(task, event)}><Text style={styles.editMark}>•••</Text></Pressable>
       </View>
     );
   };
@@ -284,7 +290,7 @@ export default function PackingScreen() {
                       <Pressable accessibilityLabel={`${item.name}を${item.packed ? '未準備' : '準備済み'}にする`} accessibilityRole="checkbox" aria-checked={item.packed} hitSlop={8} disabled={!canEdit} onPress={() => togglePacking(item)} style={[styles.check, item.packed && styles.checkDone]}>
                         <MotionCheck checked={item.packed} />
                       </Pressable>
-                      <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}を編集`} disabled={!canEdit} onPress={() => openPackingEdit(item)} style={({ pressed }) => [styles.rowCopy, pressed && styles.pressed]}>
+                      <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}を編集`} disabled={!canEdit} onPress={(event) => openPackingEdit(item, event)} style={({ pressed }) => [styles.rowCopy, pressed && styles.pressed]}>
                         <View style={styles.itemCopy}>
                           <Text style={[styles.itemName, item.packed && styles.itemDone]}>{item.name}</Text>
                           <View style={styles.packingMeta}>
@@ -295,7 +301,7 @@ export default function PackingScreen() {
                         </View>
                         {item.quantity > 1 ? <Text style={styles.quantity}>× {item.quantity}</Text> : null}
                       </Pressable>
-                      <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}を編集`} hitSlop={8} disabled={!canEdit} onPress={() => openPackingEdit(item)}><Text style={styles.editMark}>•••</Text></Pressable>
+                      <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}を編集`} hitSlop={8} disabled={!canEdit} onPress={(event) => openPackingEdit(item, event)}><Text style={styles.editMark}>•••</Text></Pressable>
                     </View>
                   ))}
                 </View>
@@ -307,7 +313,7 @@ export default function PackingScreen() {
 
       {selectedTrip && canEdit ? <FloatingAddButton label={isTasks ? 'やることを追加する' : '持ち物を追加する'} onPress={openCreate} /> : null}
 
-      <FormSheet visible={formOpen} title={editingId ? (isTasks ? 'やることを編集' : '持ち物を編集') : (isTasks ? 'やることを追加' : '持ち物を追加')} onClose={() => setFormOpen(false)} onSave={canEdit ? save : undefined} canSave={Boolean(isTasks ? taskDraft.title.trim() : packingDraft.name.trim())} dirty={JSON.stringify(isTasks ? [taskDraft, hasDueDate] : packingDraft) !== initialDraft} error={formError}>
+      <FormSheet detailOrigin={detailOrigin} visible={formOpen} title={editingId ? (isTasks ? 'やることを編集' : '持ち物を編集') : (isTasks ? 'やることを追加' : '持ち物を追加')} onClose={() => setFormOpen(false)} onSave={canEdit ? save : undefined} canSave={Boolean(isTasks ? taskDraft.title.trim() : packingDraft.name.trim())} dirty={JSON.stringify(isTasks ? [taskDraft, hasDueDate] : packingDraft) !== initialDraft} error={formError}>
               {isTasks ? (
                 <>
                   <Text style={styles.label}>やること</Text>

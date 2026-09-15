@@ -67,7 +67,7 @@
     "test:pwa": "node scripts/test-pwa-api.mjs && node scripts/test-service-worker.mjs && node scripts/test-icon-check.mjs",
     "icons:export": "node scripts/export-brand.mjs",
     "test:ui": "node scripts/test-ui-boundaries.mjs",
-    "test:motion": "node scripts/test-motion.mjs && node scripts/test-trip-transition.mjs && node scripts/test-detail-motion.mjs"
+    "test:motion": "node scripts/test-motion.mjs && node scripts/test-trip-transition.mjs && node scripts/test-detail-motion.mjs && node scripts/test-modal-viewport-insets.mjs"
   },
   "private": true
 }

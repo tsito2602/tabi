@@ -1,3 +1,4 @@
+import type { GestureResponderEvent } from 'react-native';
 import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { MotionTabs } from '@/components/motion-tabs';
@@ -295,8 +296,8 @@ export default function ItineraryScreen() {
     if (visibleDay && visibleDay !== visibleActiveDay) setActiveDay(visibleDay);
   };
 
-  const openAdd = () => {
-    setDetailOrigin(undefined);
+  const openAdd = (event: GestureResponderEvent) => {
+    setDetailOrigin(captureDetailOrigin(event));
     if (!selectedTrip) return;
     setViewingItemId(null);
     setEditingId(null);
@@ -469,7 +470,7 @@ export default function ItineraryScreen() {
         </View>
       </ScrollView>
 
-      {selectedTrip && canEdit ? <FloatingAddButton label="予定を追加する" onPress={() => openAdd()} /> : null}
+      {selectedTrip && canEdit ? <FloatingAddButton label="予定を追加する" onPress={openAdd} /> : null}
       <MotionPresence>{connectionBookingId ? <FlightConnectionSheet detailOrigin={connectionOrigin} bookingId={connectionBookingId} onClose={() => setConnectionBookingId(null)} /> : null}</MotionPresence>
 
       <MotionPresence>{viewingBooking ? <BookingSheet detailOrigin={detailOrigin} key={`${selectedTrip?.id}:${viewingBooking.id}`} booking={viewingBooking} onClose={() => setViewingBookingId(null)} /> : null}</MotionPresence>

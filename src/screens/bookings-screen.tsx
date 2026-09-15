@@ -1,3 +1,4 @@
+import type { GestureResponderEvent } from 'react-native';
 import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
 import { MotionTabs } from '@/components/motion-tabs';
 import { MotionPresence } from '@/components/motion-presence';
@@ -40,7 +41,7 @@ function TripBookingsScreen() {
   const [connectionOrigin, setConnectionOrigin] = useState<DetailOrigin>();
   const connections = useMemo(() => new Map(findFlightConnections(bookings).map((connection) => [connection.arrivalBookingId, connection])), [bookings]);
   const filtered = bookings.filter((booking) => (kindFilter === 'all' || booking.kind === kindFilter) && `${booking.title} ${booking.detail} ${booking.origin} ${booking.destination} ${booking.originCode} ${booking.destinationCode} ${booking.confirmationCode}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
-  const openCreate = () => { setDetailOrigin(undefined); setOpenedBooking('new'); };
+  const openCreate = (event: GestureResponderEvent) => { setDetailOrigin(captureDetailOrigin(event)); setOpenedBooking('new'); };
   const selectedBooking = bookings.find((booking) => booking.id === openedBooking);
 
   useEffect(() => {

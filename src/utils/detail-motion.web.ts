@@ -91,15 +91,31 @@ export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, 
   const returnFocus = () => {
     const restore = () => {
       const element = source()?.element;
-      // Never steal focus from another sheet opened by an action in this one.
-      if (disposed && !doc.querySelector('[aria-modal="true"]') && element && !element.closest('[aria-hidden="true"], [inert]')) element.focus({ preventScroll: true });
+      if (!disposed || !element || element.closest('[aria-hidden="true"], [inert]')) return;
+      const active = doc.activeElement;
+      // Do not override a new input/button chosen while the portal was closing.
+      // A modal's focus-trap container may still hand focus back to its trigger.
+      if (active && active !== doc.body && active !== doc.documentElement
+        && !active.contains(element) && !surface.contains(active)) return;
+      // A nested picker returns to its trigger inside the still-open parent.
+      // Only an unrelated visible modal should prevent that restoration.
+      const blocked = Array.from(doc.querySelectorAll<HTMLElement>('[aria-modal="true"]')).some((modal) =>
+        !modal.contains(element) && modal.getClientRects().length > 0
+        && !modal.closest('[aria-hidden="true"], [inert]')
+        && win.getComputedStyle(modal).visibility !== 'hidden');
+      if (!blocked) element.focus({ preventScroll: true });
     };
     win.requestAnimationFrame(() => win.requestAnimationFrame(restore));
   };
   const settle = () => {
     cancel(); clearDrag(); resetStyles();
     const complete = closingDone; closingDone = undefined;
-    if (!isOpen) { complete?.(); returnFocus(); }
+    if (!isOpen) {
+      // Resize/reduced-motion can finish an exit before React removes the DOM.
+      // Cancelling its fill must not expose the fully expanded surface again.
+      surface.style.opacity = '0';
+      complete?.(); returnFocus();
+    }
   };
   const animate = (open: boolean, reduced: boolean, done: () => void, kind: SheetMotionKind) => {
     const current = win.getComputedStyle(surface);
@@ -238,6 +254,9 @@ export function createDetailMotion(surface: HTMLElement, viewport: HTMLElement, 
   win.addEventListener('resize', resize);
   win.visualViewport?.addEventListener('resize', resize);
   return {
+    // A retained modal can reopen for another item before its previous exit
+    // unmounts. Update the target without replacing its DOM or sampled pose.
+    setOrigin(next: DetailOrigin | undefined) { origin = next; },
     setOpen(open: boolean, reduced: boolean, done: () => void, kind: SheetMotionKind = 'detail') { bindHandle(); return animate(open, reduced, done, kind); },
     suspend() { isOpen = true; closingDone = undefined; settle(); delete surface.dataset.detailMotion; delete surface.dataset.sheetMotionKind; detachHandle(); handle = null; },
     dispose() { disposed = true; closingDone = undefined; cancel(); clearDrag(); resetStyles(); delete surface.dataset.detailMotion; delete surface.dataset.sheetMotionKind; detachHandle(); surface.removeEventListener('keydown', keydown); surface.removeEventListener('focusin', focusin); win.removeEventListener('resize', resize); win.visualViewport?.removeEventListener('resize', resize); },

@@ -203,3 +203,87 @@ for (const kind of ['form', 'picker']) {
   assert(changed.some(r => r.element !== f.surface && r.frames[0].opacity === '0')); await f.finish(); f.close();
 }
 console.log('Utility sheets: shared motion, ordered controls, focus, no replay, picker grouping, opacity and mode changes passed.');
+
+// A retained portal may change items while its previous exit is still running.
+for (const kind of ['detail', 'form', 'picker']) {
+  const f = fixture(); let staleClosed = 0, closed = 0;
+  f.motion.setOpen(true, false, () => {}, kind); await f.finish();
+  const stopClose = f.motion.setOpen(false, false, () => staleClosed++, kind);
+  const next = f.doc.createElement('button'); f.doc.body.prepend(next);
+  const rect = { left: 40, top: 500, width: 180, height: 56 };
+  next.getBoundingClientRect = () => rect;
+  stopClose();
+  f.motion.setOrigin({ element: next, rect, radius: 18 });
+  f.motion.setOpen(true, false, () => {}, kind); await f.finish();
+  assert.equal(staleClosed, 0, 'the old close cannot unmount the new selection');
+  f.motion.setOpen(false, false, () => closed++, kind);
+  const frame = f.records.filter(r => r.element === f.surface).at(-1).frames[1];
+  const target = detailPose(rect, f.surface.getBoundingClientRect(), 18);
+  assert.equal(frame.transform, target.transform, 'return uses the current item rather than the first one');
+  assert.equal(frame.clipPath, target.clipPath, 'the current item also supplies its outline');
+  await f.finish(); assert.equal(closed, 1); f.close();
+}
+{
+  const f = fixture(); let closed = 0;
+  f.motion.setOpen(true, false, () => {}); await f.finish();
+  f.motion.setOrigin(undefined);
+  f.motion.setOpen(false, false, () => closed++);
+  const frames = f.records.filter(r => r.element === f.surface).at(-1).frames;
+  assert.equal(frames.length, 2, 'clearing the origin must not retain the previous item');
+  assert.equal(frames.at(-1).transform, 'translate3d(0px, 16px, 0px)');
+  await f.finish(); assert.equal(closed, 1); f.close();
+}
+for (const reason of ['resize', 'reduced', 'unsupported']) {
+  const f = fixture(); let closed = 0, opacityAtClose;
+  const complete = () => { closed++; opacityAtClose = f.dom.window.getComputedStyle(f.surface).opacity; };
+  f.motion.setOpen(true, false, () => {}); await f.finish();
+  f.motion.setOpen(false, false, complete);
+  const animate = f.surface.animate;
+  if (reason === 'resize') f.dom.window.dispatchEvent(new f.dom.window.Event('resize'));
+  else {
+    if (reason === 'unsupported') f.surface.animate = undefined;
+    f.motion.setOpen(false, reason === 'reduced', complete);
+  }
+  assert.equal(opacityAtClose, '0', 'finishing an exit cannot reveal a full-size surface before DOM removal');
+  await f.finish(); assert.equal(closed, 1, 'cancelled animations cannot complete the exit twice');
+  f.surface.animate = animate;
+  f.motion.setOpen(true, false, () => {}); await f.finish();
+  assert.equal(f.surface.style.opacity, '', 'reopening clears the terminal hidden state');
+  assert.equal(f.dom.window.getComputedStyle(f.surface).opacity, '1');
+  f.close();
+}
+console.log('Retained modals: updated/cleared origin, obsolete exit cancellation and hidden terminal exit state passed.');
+
+// A child portal must return focus inside its surviving parent without stealing
+// it from a new modal or an input the user has already moved to.
+for (const scenario of ['parent', 'reduced', 'new-modal', 'nested-new-modal', 'other-input', 'trap-container', 'hidden-modal', 'inert-source', 'removed-source', 'unfocused-modal']) {
+  const f = fixture();
+  const parent = f.doc.createElement('section');
+  parent.setAttribute('aria-modal', 'true');
+  f.doc.body.prepend(parent); parent.append(f.source);
+  const reduced = scenario === 'reduced';
+  f.motion.setOpen(true, reduced, () => {}, 'picker'); await f.finish();
+  let expected = f.source;
+  f.motion.setOpen(false, reduced, () => {
+    f.motion.dispose(); f.surface.parentElement.remove();
+    if (scenario === 'inert-source') { parent.setAttribute('inert', ''); expected = f.doc.body; }
+    if (scenario === 'removed-source') { f.source.remove(); expected = f.doc.body; }
+    if (scenario === 'trap-container') { parent.tabIndex = -1; parent.focus(); }
+    if (scenario === 'other-input') {
+      const input = f.doc.createElement('input'); parent.append(input); input.focus(); expected = input;
+    }
+    if (['new-modal', 'nested-new-modal', 'hidden-modal', 'unfocused-modal'].includes(scenario)) {
+      const next = f.doc.createElement('section'); next.setAttribute('aria-modal', 'true');
+      const button = f.doc.createElement('button'); next.append(button);
+      (scenario === 'nested-new-modal' ? parent : f.doc.body).append(next);
+      if (scenario === 'hidden-modal') next.setAttribute('aria-hidden', 'true');
+      else if (scenario === 'unfocused-modal') expected = f.doc.body;
+      else { button.focus(); expected = button; }
+    }
+  }, 'picker');
+  await f.finish();
+  await new Promise(resolve => f.dom.window.requestAnimationFrame(() => f.dom.window.requestAnimationFrame(resolve)));
+  assert.equal(f.doc.activeElement, expected, `nested focus restoration: ${scenario}`);
+  f.close();
+}
+console.log('Nested modal focus: parent trigger, focus traps, reduced motion, unrelated modals and new input focus passed.');
