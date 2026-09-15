@@ -6,7 +6,9 @@ import type { PlannerDragProps, PlannerHandleProps, PlannerSlotProps } from './p
 const Context = createContext<PlannerDragProps | null>(null);
 export function PlannerDrag({ children, ...props }: PlannerDragProps) {
   const root = useRef<HTMLDivElement>(null);
-  const live = useRef(props); live.current = props;
+  const live = useRef(props);
+  // Native pointer callbacks must only observe committed props.
+  useLayoutEffect(() => { live.current = props; });
   useLayoutEffect(() => {
     if (!root.current || !props.enabled) return;
     return attachPlannerPointer(root.current, {

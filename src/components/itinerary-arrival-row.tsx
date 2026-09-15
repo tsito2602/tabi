@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type PropsWithChildren } from 'react';
+import { useLayoutEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { Animated, Easing, Platform, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { usePalette } from '@/theme/theme-provider';
 
@@ -16,9 +16,9 @@ type Props = PropsWithChildren<{
 // never jump and the scroll destination stays valid during the animation.
 export function ItineraryArrivalRow({ children, waiting = false, entering = false, sequence = 0, reduced, testID, onLayout, onInterrupt }: Props) {
   const palette = usePalette();
-  const position = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
-  const highlight = useRef(new Animated.Value(0)).current;
+  const [position] = useState(() => new Animated.Value(1));
+  const [opacity] = useState(() => new Animated.Value(1));
+  const [highlight] = useState(() => new Animated.Value(0));
   const played = useRef<number | null>(null);
   const stop = () => {
     if (waiting || entering) onInterrupt();

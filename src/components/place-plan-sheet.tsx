@@ -19,12 +19,12 @@ export function PlacePlanSheet({ placeId, detailOrigin, onClose, onComplete }: {
 }) {
   const styles = useThemedStyles(createStyles);
   const { selectedTrip, places, items, bookings, canEdit, createItem, updatePlace } = useTravel();
-  const tripId = useRef(selectedTrip?.id ?? '').current;
-  const initial = useRef<PlacePlan>({ day: selectedTrip?.startsOn ?? '', time: '', category: 'sightseeing' }).current;
+  const [tripId] = useState(() => selectedTrip?.id ?? '');
+  const [initial] = useState<PlacePlan>(() => ({ day: selectedTrip?.startsOn ?? '', time: '', category: 'sightseeing' }));
   const [plan, setPlan] = useState<PlacePlan>(initial);
   const [error, setError] = useState('');
   const saving = useRef(false);
-  const committer = useRef(createPlacePlanCommitter()).current;
+  const committer = useRef(createPlacePlanCommitter());
   const [createdId, setCreatedId] = useState<string>();
   const linkPending = Boolean(createdId);
   const place = places.find((entry) => entry.id === placeId);
@@ -46,11 +46,11 @@ export function PlacePlanSheet({ placeId, detailOrigin, onClose, onComplete }: {
     if (selectedTrip?.id !== tripId || !place) { setError(validation); return; }
     saving.current = true;
     try {
-      const result = committer.save({ trip: selectedTrip, expectedTripId: tripId, place, items, canEdit }, plan, { createItem, updatePlace });
+      const result = committer.current.save({ trip: selectedTrip, expectedTripId: tripId, place, items, canEdit }, plan, { createItem, updatePlace });
       onComplete(tripId, result.itemId, result.inserted);
     } catch (cause) {
       saving.current = false;
-      setCreatedId(committer.pendingItemId);
+      setCreatedId(committer.current.pendingItemId);
       setError(cause instanceof Error ? cause.message : '追加できませんでした。もう一度お試しください。');
     }
   };
