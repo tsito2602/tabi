@@ -3,11 +3,11 @@ import { useTravel } from '@/data/travel-provider';
 import { createPlannerCommitter, plannerSourceTitle, preparePlacement, type PlanSource, type PreparedPlacement } from '@/data/planner';
 import type { PlacementSlot } from '@/data/itinerary-placement';
 
-export function useItineraryComposer() {
+export function useItineraryComposer({ initiallyEnabled = false }: { initiallyEnabled?: boolean } = {}) {
   const travel = useTravel();
   const live = useRef(travel);
   useLayoutEffect(() => { live.current = travel; }, [travel]);
-  const [enabled, setEnabled] = useState(false);
+  const [enabled, setEnabled] = useState(initiallyEnabled);
   const [source, setSource] = useState<PlanSource | null>(null);
   const [pending, setPending] = useState<PreparedPlacement | null>(null);
   const [notice, setNotice] = useState('');
