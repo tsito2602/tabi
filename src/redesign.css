@@ -182,6 +182,59 @@ input, textarea, select { caret-color: var(--ocean); }
     min-height: 36px !important; padding: 7px 12px !important;
   }
 }
+
+/* Itinerary add/edit is a workspace, not a floating sheet. Keep the detail
+   viewer sheet-like, but let the actual editor occupy the full viewport. */
+[data-testid="form-modal-viewport"]:has([data-testid="itinerary-editor-fields"]) {
+  padding: 0 !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  background: var(--canvas) !important;
+}
+[data-testid="form-modal-viewport"]:has([data-testid="itinerary-editor-fields"]) > [data-testid="form-sheet"] {
+  width: 100% !important;
+  max-width: none !important;
+  max-height: 100% !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Edit mode makes the movement model legible at a glance: movable plans use
+   the blue action language, while fixed reservations stay deliberately muted. */
+[data-plan-enabled] .planner-card-frame [data-testid="itinerary-card"] { position: relative; }
+[data-plan-enabled] .planner-card-frame:has(.planner-keyboard-handle:not(:disabled)) [data-testid="itinerary-card"] {
+  border-color: var(--ocean) !important;
+  box-shadow: inset 0 0 0 1px var(--ocean);
+}
+[data-plan-enabled] .planner-card-frame:has(.planner-keyboard-handle:not(:disabled)) [data-testid="itinerary-card"]::after,
+[data-plan-enabled] .planner-card-frame:not(:has(.planner-keyboard-handle:not(:disabled))) [data-testid="itinerary-card"]::after {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font: 600 10px/14px system-ui;
+  pointer-events: none;
+}
+[data-plan-enabled] .planner-card-frame:has(.planner-keyboard-handle:not(:disabled)) [data-testid="itinerary-card"]::after {
+  content: '移動可';
+  color: var(--ocean);
+  background: var(--sky);
+}
+[data-plan-enabled] .planner-card-frame:not(:has(.planner-keyboard-handle:not(:disabled))) [data-testid="itinerary-card"] {
+  border-color: var(--ash) !important;
+  background: var(--soft) !important;
+}
+[data-plan-enabled] .planner-card-frame:not(:has(.planner-keyboard-handle:not(:disabled))) [data-testid="itinerary-card"]::after {
+  content: '固定';
+  color: var(--smoke);
+  background: var(--mist);
+}
+[data-plan-enabled] .planner-card-frame [data-testid="itinerary-card"] [role="button"] {
+  padding-right: 76px !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-testid="trip-workspace"] .motion-page-content { animation: none; }
   [data-testid="trip-tabs"] .t-tabs-pill { transition: none; }

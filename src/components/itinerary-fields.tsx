@@ -11,7 +11,7 @@ type IconName = ComponentProps<typeof SymbolView>['name'];
 export function ItineraryCategoryPicker({ value, onChange, linkedPlace = false }: { value: ItineraryCategory; onChange: (value: ItineraryCategory) => void; linkedPlace?: boolean }) {
   const styles = useThemedStyles(createStyles);
   const palette = usePalette();
-  return <View><Text style={styles.label}>カテゴリ</Text><View style={styles.choices}>
+  return <View testID="itinerary-editor-fields"><Text style={styles.label}>カテゴリ</Text><View style={styles.choices}>
     {itineraryCategories.filter((category) => !linkedPlace || category.value !== 'transport').map((category) => <Pressable key={category.value} accessibilityRole="button" accessibilityState={{ selected: category.value === value }} onPress={() => onChange(category.value)} style={[styles.choice, category.value === value && styles.selected]}>
       <SymbolView name={{ ios: category.ios, android: category.icon, web: category.icon } as IconName} size={19} tintColor={category.value === value ? palette.onOcean : palette.ocean} />
       <Text style={[styles.choiceText, category.value === value && styles.selectedText]}>{category.label}</Text>
