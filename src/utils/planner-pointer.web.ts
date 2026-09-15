@@ -74,7 +74,7 @@ export function attachPlannerPointer(root: HTMLElement, callbacks: Callbacks) {
     ghost.removeAttribute('id'); ghost.removeAttribute('data-plan-card');
     ghost.querySelectorAll('[id], [data-testid]').forEach(e => { e.removeAttribute('id'); e.removeAttribute('data-testid'); });
     ghost.querySelectorAll('button, [role="button"], a, input, textarea').forEach(e => e.setAttribute('tabindex', '-1'));
-    doc.body.append(ghost);
+    doc.body.appendChild(ghost);
     if (active.source.kind === 'item') { lifted = card; lifted.dataset.planLifted = ''; }
     callbacks.start(active.source);
     frame = win.requestAnimationFrame(tick);

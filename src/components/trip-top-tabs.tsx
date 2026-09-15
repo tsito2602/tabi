@@ -58,7 +58,7 @@ export function TripTopTabs({ tripId }: { tripId: string }) {
       {!managing ? <><SyncStatus /><ScrollView testID="trip-tabs" ref={tabScroll} horizontal showsHorizontalScrollIndicator={false} onLayout={e => setTabWidth(e.nativeEvent.layout.width)} onContentSizeChange={revealTab} style={s.tabScroll} contentContainerStyle={{ flexGrow: 1 }} accessibilityRole="tablist">
         <MotionTabs style={s.tabs}>{tripNavigation.map(tab => {
           const selected = pathname.endsWith(`/${tab.key}`);
-          return <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.accessibilityLabel ?? tab.label} aria-selected={selected} accessibilityState={{ selected }}
+          return <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.accessibilityLabel} aria-selected={selected} accessibilityState={{ selected }}
             onLayout={e => { tabLayouts.current[tab.key] = e.nativeEvent.layout; if (selected) revealTab(); }}
             onPress={() => router.replace({ pathname: `/trips/[tripId]/${tab.key}`, params: { tripId } })} style={[s.tab, selected && s.tabSelected]}><Text numberOfLines={1} style={[s.tabText, selected && s.tabTextSelected]}>{tab.label}</Text></Pressable>;
         })}</MotionTabs>
