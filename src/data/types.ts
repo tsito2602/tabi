@@ -15,11 +15,20 @@ export type Trip = {
 
 export type ItineraryCategory = 'sightseeing' | 'meal' | 'transport' | 'shopping' | 'other';
 export type TransportMode = 'walk' | 'train' | 'bus' | 'car' | 'taxi' | 'flight' | 'boat' | 'other';
+export type ItineraryPlacement = {
+  day: string;
+  time: string;
+  beforeKey: string | null;
+  afterKey: string | null;
+  sequence: number;
+  orderKey?: string;
+};
 export type ItineraryDetails = {
   category: ItineraryCategory;
   location: string;
   endDay: string;
   endTime: string;
+  placement?: ItineraryPlacement | null;
   transport?: { mode: TransportMode; origin: string; destination: string; durationMinutes?: number; afterKey?: string };
 };
 

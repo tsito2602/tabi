@@ -4,8 +4,9 @@ export default function Root({ children }: PropsWithChildren) {
   return <html lang="ja" suppressHydrationWarning><head>
     <meta charSet="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#EEF2F4" />
-    <script dangerouslySetInnerHTML={{ __html: `(function(){try{var p=localStorage.getItem('tabi.theme');var d=p==='dark'||(p!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.style.colorScheme=d?'dark':'light';document.querySelector('meta[name="theme-color"]').content=d?'#10191F':'#EEF2F4';}catch(e){}})();` }} />
+    <meta name="theme-color" content="#F7F7F5" />
+    <style dangerouslySetInnerHTML={{ __html: 'html{background:#F7F7F5}html[data-theme=dark]{background:#141416}' }} />
+    <script dangerouslySetInnerHTML={{ __html: `(function(){try{var p=localStorage.getItem('tabi.theme');var d=p==='dark'||(p!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.style.colorScheme=d?'dark':'light';document.querySelector('meta[name="theme-color"]').content=d?'#141416':'#F7F7F5';}catch(e){}})();` }} />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="tabi" />
