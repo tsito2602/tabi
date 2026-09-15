@@ -70,7 +70,7 @@ export default function HomeScreen() {
 }
 const createStyles = (palette: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.canvas }, content: { width: '100%', maxWidth: 800, alignSelf: 'center', padding: 20, paddingBottom: 32 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }, eyebrow: { color: palette.ocean, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginBottom: 8 }, title: { color: palette.ink, fontSize: 36, lineHeight: 44, fontWeight: '800', letterSpacing: -1 },
+  header: { position: 'relative', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, backgroundColor: palette.canvas }, eyebrow: { color: palette.ocean, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginBottom: 8 }, title: { color: palette.ink, fontSize: 36, lineHeight: 44, fontWeight: '800', letterSpacing: -1 },
   add: { minHeight: 48, paddingHorizontal: 18, borderRadius: 12, backgroundColor: palette.ocean, justifyContent: 'center' }, addText: { color: palette.onOcean, fontSize: 15, fontWeight: '700' }, pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
   group: { gap: 18, marginTop: 24 }, groupTitle: { color: palette.slate, fontSize: 13, fontWeight: '600' }, count: { color: palette.ocean },
   notice: { color: palette.ocean, paddingVertical: 12, fontSize: 14 }, loading: { padding: 80 }, empty: { paddingVertical: 56, alignItems: 'center', gap: 12 },
