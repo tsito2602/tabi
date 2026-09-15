@@ -1,3 +1,4 @@
+import type { DetailOrigin } from '@/utils/detail-origin';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { useToast } from './toast';
 import { CoverPicker } from './cover-picker';
@@ -10,7 +11,7 @@ import { localDate, validDate } from '@/utils/dates';
 import { DateRangePicker } from './date-range-picker';
 import { FormSheet } from './form-sheet';
 
-export function TripEditor({ trip, onClose, onSaved }: { trip?: Trip; onClose: () => void; onSaved?: (id: string) => void }) {
+export function TripEditor({ trip, onClose, onSaved, detailOrigin }: { detailOrigin?: DetailOrigin; trip?: Trip; onClose: () => void; onSaved?: (id: string) => void }) {
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
 
@@ -30,7 +31,7 @@ export function TripEditor({ trip, onClose, onSaved }: { trip?: Trip; onClose: (
     if (trip) { updateTrip(trip.id, input); id = trip.id; } else id = createTrip(input);
     onClose(); onSaved?.(id); toast(trip ? '旅行を更新しました' : '旅行を作成しました');
   };
-  return <FormSheet visible title={trip ? '旅行を編集' : '新しい旅行'} onClose={onClose} onSave={trip?.role === 'viewer' ? undefined : save} canSave={Boolean(name.trim())} dirty={JSON.stringify([name, destination, startsOn, endsOn, coverImage]) !== initial} error={error}>
+  return <FormSheet detailOrigin={detailOrigin} visible title={trip ? '旅行を編集' : '新しい旅行'} onClose={onClose} onSave={trip?.role === 'viewer' ? undefined : save} canSave={Boolean(name.trim())} dirty={JSON.stringify([name, destination, startsOn, endsOn, coverImage]) !== initial} error={error}>
     <Text style={styles.label}>トップ画像</Text>
     <CoverPicker value={coverImage} onChange={setCoverImage} />
     <Text style={styles.label}>旅行名</Text>

@@ -1,3 +1,4 @@
+import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
 import { closeTripTransition } from '@/utils/trip-transition';
 import { MotionPresence } from '@/components/motion-presence';
 import { MotionTabs } from './motion-tabs';
@@ -45,6 +46,7 @@ export function TripTopTabs({ tripId }: { tripId: string }) {
   const managing = pathname.endsWith('/members');
   const { selectedTrip, deleteTrip } = useTravel();
   const [editing, setEditing] = useState(false);
+  const [detailOrigin, setDetailOrigin] = useState<DetailOrigin>();
   const [menu, setMenu] = useState(false);
   const viewport = useModalViewport(menu);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -84,14 +86,14 @@ export function TripTopTabs({ tripId }: { tripId: string }) {
         <View testID="trip-menu-position" style={[styles.menuPosition, { top: insets.top + 58 }]} pointerEvents="box-none">
           <View testID="trip-menu" style={styles.menu}>
             {!managing ? <Pressable accessibilityRole="button" accessibilityLabel="メンバーを管理" onPress={() => { setMenu(false); router.push({ pathname: '/trips/[tripId]/members', params: { tripId } }); }} style={styles.menuRow}><SymbolView name={{ ios: 'person.2', android: 'group', web: 'group' }} size={19} tintColor={palette.ocean} /><Text style={styles.menuText}>メンバーを管理</Text></Pressable> : null}
-            {canEdit ? <Pressable accessibilityRole="button" onPress={() => { setMenu(false); setEditing(true); }} style={styles.menuRow}><SymbolView name={{ ios: 'pencil', android: 'edit', web: 'edit' }} size={19} tintColor={palette.ocean} /><Text style={styles.menuText}>旅行を編集</Text></Pressable> : null}
+            {canEdit ? <Pressable accessibilityRole="button" onPress={(event) => { setDetailOrigin(captureDetailOrigin(event)); setMenu(false); setEditing(true); }} style={styles.menuRow}><SymbolView name={{ ios: 'pencil', android: 'edit', web: 'edit' }} size={19} tintColor={palette.ocean} /><Text style={styles.menuText}>旅行を編集</Text></Pressable> : null}
             {Platform.OS === 'web' ? <Pressable accessibilityRole="button" disabled={offline.busy} onPress={() => { setMenu(false); void offline.save(); }} style={styles.menuRow}><SymbolView name={{ ios: 'arrow.down.circle', android: 'download', web: 'download' }} size={19} tintColor={palette.ocean} /><Text style={styles.menuText}>{offline.busy ? offline.progress : 'オフライン保存'}</Text></Pressable> : null}
             {selectedTrip?.role === 'owner' ? <Pressable accessibilityRole="button" onPress={() => { setMenu(false); setDeleteError(''); setConfirmDelete(true); }} style={[styles.menuRow, styles.deleteRow]}><SymbolView name={{ ios: 'trash', android: 'delete', web: 'delete' }} size={19} tintColor={palette.danger} /><Text style={[styles.menuText, { color: palette.danger }]}>旅行を削除</Text></Pressable> : null}
           </View>
         </View>
       </View>
     </MotionModal>
-    <MotionPresence>{editing && selectedTrip ? <TripEditor trip={selectedTrip} onClose={() => setEditing(false)} /> : null}</MotionPresence>
+    <MotionPresence>{editing && selectedTrip ? <TripEditor detailOrigin={detailOrigin} trip={selectedTrip} onClose={() => setEditing(false)} /> : null}</MotionPresence>
     <DeleteTripDialog visible={confirmDelete} name={selectedTrip?.name ?? ''} busy={deleting} error={deleteError} onCancel={() => setConfirmDelete(false)} onConfirm={() => void remove()} />
   </View>;
 }

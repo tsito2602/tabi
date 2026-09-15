@@ -1,3 +1,4 @@
+import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
 import { MotionPresence } from '@/components/motion-presence';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { motionMs } from '@/utils/motion';
@@ -34,6 +35,7 @@ export function DateRangePicker({ startDate, endDate, startTime = '', endTime = 
   const styles = useThemedStyles(createStyles);
 
   const [open, setOpen] = useState(false);
+  const [detailOrigin, setDetailOrigin] = useState<DetailOrigin>();
   const firstLabel = startLabel ?? (mode === 'single' ? '日付' : '出発日');
   const lastLabel = endLabel ?? '帰着日';
   const value = (date: string, time: string) => `${displayDate(date)}${showTime && time ? ` ${time}` : ''}`;
@@ -44,7 +46,7 @@ export function DateRangePicker({ startDate, endDate, startTime = '', endTime = 
         accessibilityRole="button"
         accessibilityLabel={mode === 'single' ? `${firstLabel} ${value(startDate, startTime)}` : `${firstLabel} ${value(startDate, startTime)}、${lastLabel} ${value(endDate, endTime)}`}
         disabled={disabled}
-        onPress={() => setOpen(true)}
+        onPress={(event) => { setDetailOrigin(captureDetailOrigin(event)); setOpen(true); }}
         style={({ pressed }) => [styles.trigger, disabled && styles.disabled, pressed && styles.pressed]}>
         <View accessibilityElementsHidden style={styles.calendarIcon}>
           <View style={styles.calendarTop} />
@@ -60,12 +62,12 @@ export function DateRangePicker({ startDate, endDate, startTime = '', endTime = 
           </>
         )}
       </Pressable>
-      <MotionPresence>{open ? <DateRangeDialog startDate={startDate} endDate={endDate} startTime={startTime} endTime={endTime} startLabel={firstLabel} endLabel={lastLabel} label={label} mode={mode} showTime={showTime} close={() => setOpen(false)} onChange={onChange} /> : null}</MotionPresence>
+      <MotionPresence>{open ? <DateRangeDialog detailOrigin={detailOrigin} startDate={startDate} endDate={endDate} startTime={startTime} endTime={endTime} startLabel={firstLabel} endLabel={lastLabel} label={label} mode={mode} showTime={showTime} close={() => setOpen(false)} onChange={onChange} /> : null}</MotionPresence>
     </View>
   );
 }
 
-function DateRangeDialog({ startDate, endDate, startTime = '', endTime = '', startLabel = '出発日', endLabel = '帰着日', label = '期間', mode, showTime = false, close, onChange }: Props & { close: () => void }) {
+function DateRangeDialog({ detailOrigin, startDate, endDate, startTime = '', endTime = '', startLabel = '出発日', endLabel = '帰着日', label = '期間', mode, showTime = false, close, onChange }: Props & { detailOrigin?: DetailOrigin; close: () => void }) {
   const styles = useThemedStyles(createStyles);
 
   const viewport = useModalViewport(true);
@@ -129,11 +131,11 @@ function DateRangeDialog({ startDate, endDate, startTime = '', endTime = '', sta
         : '出発日を選択してください。';
 
   return (
-    <MotionModal transparent animationType="fade" visible onRequestClose={close}>
+    <MotionModal detailOrigin={detailOrigin} transparent animationType="fade" visible onRequestClose={close}>
       <SafeAreaView testID="modal-viewport" style={[styles.backdrop, viewport]}>
         <Pressable accessibilityLabel="日付選択を閉じる" onPress={close} style={StyleSheet.absoluteFill} />
         <View testID="picker-sheet" accessibilityViewIsModal style={styles.dialog}>
-          <ScrollView ref={scroll} contentContainerStyle={styles.dialogContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView testID="sheet-content-scroll" ref={scroll} contentContainerStyle={styles.dialogContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.heading}>
             <Text style={styles.dialogTitle}>{label}</Text>
             <Pressable accessibilityLabel="日付選択を閉じる" onPress={close} style={styles.iconButton}><Text style={styles.close}>×</Text></Pressable>

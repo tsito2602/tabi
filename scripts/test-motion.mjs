@@ -7,7 +7,7 @@ import { createRoot } from 'react-dom/client';
 import ts from 'typescript';
 import { JSDOM } from 'jsdom';
 
-const dom = new JSDOM('<!doctype html><html><head><style>:root { --modal-close-dur: 20ms; --dropdown-close-dur: 20ms; }</style></head><body><main></main></body></html>');
+const dom = new JSDOM('<!doctype html><html><head><style>:root { --modal-close-dur: 20ms; --dropdown-close-dur: 20ms; }</style></head><body><main></main></body></html>', { pretendToBeVisual: true });
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, getComputedStyle: dom.window.getComputedStyle, MutationObserver: dom.window.MutationObserver, IS_REACT_ACT_ENVIRONMENT: true });
 let reduced = false;
 const mediaListeners = new Set();
@@ -45,11 +45,15 @@ function load(path) {
   const module = { exports: {} }; cache.set(path, module);
   const js = ts.transpileModule(readFileSync(path, 'utf8'), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   new Function('require', 'module', 'exports', 'setTimeout', 'clearTimeout', js)((name) => {
+    if (name.endsWith('.css')) return {};
     if (name === 'react-native') return {
       Platform: { OS: 'web' }, Modal: ({ visible, children }) => visible ? children : null,
       View: React.forwardRef(function View({ children, ...props }, ref) { return React.createElement('div', { ...props, ref }, children); }),
     };
     const paths = {
+      '@/utils/detail-motion.web': 'src/utils/detail-motion.web.ts',
+      '@/utils/modal-viewport-insets.web': 'src/utils/modal-viewport-insets.web.ts',
+      './detail-origin.web': 'src/utils/detail-origin.web.ts',
       './motion-presence.web': 'src/components/motion-presence.web.tsx',
       '@/hooks/use-reduced-motion': 'src/hooks/use-reduced-motion.ts',
       '@/utils/motion': 'src/utils/motion.ts',

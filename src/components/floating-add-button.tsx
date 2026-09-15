@@ -1,3 +1,4 @@
+import type { GestureResponderEvent } from 'react-native';
 import { useThemedStyles } from '@/theme/theme-provider';
 import { useContext, useEffect, useRef } from 'react';
 import { PageActionContext } from './page-action-context';
@@ -7,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { type Palette } from '@/constants/design';
 
-export function FloatingAddButton({ label, onPress }: { label: string; onPress: () => void }) {
+export function FloatingAddButton({ label, onPress }: { label: string; onPress: (event: GestureResponderEvent) => void }) {
   const styles = useThemedStyles(createStyles);
 
   const desktop = useDesktop();
@@ -16,7 +17,7 @@ export function FloatingAddButton({ label, onPress }: { label: string; onPress: 
   useEffect(() => { handler.current = onPress; }, [onPress]);
   useEffect(() => {
     if (!desktop) return;
-    setAction({ label, run: () => handler.current() });
+    setAction({ label, run: (event) => handler.current(event) });
     return () => setAction(null);
   }, [desktop, label, setAction]);
   const insets = useSafeAreaInsets();

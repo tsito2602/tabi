@@ -1,3 +1,5 @@
+import type { GestureResponderEvent } from 'react-native';
+import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
 import { MotionPresence } from '@/components/motion-presence';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { useRouter } from 'expo-router';
@@ -19,6 +21,8 @@ import { useToast } from '@/components/toast';
 import { useTripHeaderHeight } from '@/components/trip-header-context';
 
 export default function PlacesScreen() {
+  const [detailOrigin, setDetailOrigin] = useState<DetailOrigin>();
+  const [actionOrigin, setActionOrigin] = useState<DetailOrigin>();
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
 
@@ -34,7 +38,7 @@ export default function PlacesScreen() {
   const [day, setDay] = useState('');
   const [category, setCategory] = useState<ItineraryCategory>('sightseeing');
   const filtered = useMemo(() => places.filter((place) => (filter === 'all' || place.status === filter) && `${place.title} ${place.note} ${place.location}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())), [places, filter, search]);
-  const open = (place?: Place) => setEditing(place ?? 'new');
+  const open = (event: GestureResponderEvent, place?: Place) => { setDetailOrigin(captureDetailOrigin(event)); setEditing(place ?? 'new'); };
   const plan = () => {
     if (!planning || !day || !canEdit) return;
     if (items.some((item) => item.id === planning.itineraryItemId)) { setPlanning(null); return; }
@@ -48,21 +52,22 @@ export default function PlacesScreen() {
       {places.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
         {[{ value: 'all' as const, label: 'すべて' }, ...placeStatuses].map((item) => <Pressable accessibilityRole="button" key={item.value} onPress={() => setFilter(item.value)} style={[styles.filter, filter === item.value && styles.filterSelected]}>{item.value !== 'all' ? <PlaceStatusIcon status={item.value} size={16} /> : null}<Text style={[styles.filterText, filter === item.value && styles.filterTextSelected]}>{item.label} {item.value === 'all' ? places.length : places.filter((place) => place.status === item.value).length}</Text></Pressable>)}
       </ScrollView> : null}
-      {!places.length ? <View style={styles.empty}><View style={styles.emptyPlaceMark} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><SymbolView name={{ ios: 'mappin.and.ellipse', android: 'location_on', web: 'location_on' }} size={46} tintColor={palette.ocean} /><View style={styles.emptyPlaceAdd}><SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={18} tintColor={palette.onOcean} /></View></View><Text style={styles.emptyTitle}>気になる場所を保存</Text><Pressable accessibilityRole="button" disabled={!canEdit} onPress={() => open()} style={styles.primary}><Text style={styles.primaryText}>＋ 場所を追加</Text></Pressable></View> : !filtered.length ? <View style={styles.empty}><Text style={styles.emptyTitle}>該当する場所がありません</Text><Pressable accessibilityRole="button" onPress={() => { setFilter('all'); setSearch(''); }} style={styles.primary}><Text style={styles.primaryText}>絞り込みを解除</Text></Pressable></View> : <View testID="place-grid" style={{ gap: 16 }}>{filtered.map((place, index) => {
+      {!places.length ? <View style={styles.empty}><View style={styles.emptyPlaceMark} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><SymbolView name={{ ios: 'mappin.and.ellipse', android: 'location_on', web: 'location_on' }} size={46} tintColor={palette.ocean} /><View style={styles.emptyPlaceAdd}><SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={18} tintColor={palette.onOcean} /></View></View><Text style={styles.emptyTitle}>気になる場所を保存</Text><Pressable accessibilityRole="button" disabled={!canEdit} onPress={(event) => open(event)} style={styles.primary}><Text style={styles.primaryText}>＋ 場所を追加</Text></Pressable></View> : !filtered.length ? <View style={styles.empty}><Text style={styles.emptyTitle}>該当する場所がありません</Text><Pressable accessibilityRole="button" onPress={() => { setFilter('all'); setSearch(''); }} style={styles.primary}><Text style={styles.primaryText}>絞り込みを解除</Text></Pressable></View> : <View testID="place-grid" style={{ gap: 16 }}>{filtered.map((place, index) => {
         const itineraryItem = items.find((item) => item.id === place.itineraryItemId);
         const status = placeStatuses.find((entry) => entry.value === place.status)!;
         const reservation = reservationStatuses.find((entry) => entry.value === place.reservationStatus)!;
         return <View key={place.id} testID="place-card" style={[styles.card, place.status === 'visited' && styles.visited]}>
-          <Pressable accessibilityRole="button" onPress={() => open(place)} style={styles.cardBody} accessibilityLabel={`${place.title}の詳細を開く`}>
+          <Pressable accessibilityRole="button" onPress={(event) => open(event, place)} style={styles.cardBody} accessibilityLabel={`${place.title}の詳細を開く`}>
             <View style={styles.cardTop}><Text style={styles.serial}>SPOT / {String(index + 1).padStart(2, '0')}</Text><Text style={[styles.reservation, place.reservationStatus === 'needed' && styles.needed]}>{reservation.label}</Text></View>
-            <Text style={styles.placeTitle}>{place.title}</Text>
+            <Text testID="detail-source-title" style={styles.placeTitle}>{place.title}</Text>
             {place.note ? <Text numberOfLines={3} style={styles.note}>{place.note}</Text> : null}
             {place.openingHours ? <Text style={styles.hours}>◷　{place.openingHours}</Text> : null}
             {place.location ? <Text numberOfLines={1} style={styles.location}>{/^https?:/i.test(place.location) ? '地図リンクを保存済み' : place.location}</Text> : null}
           </Pressable>
           <View style={styles.cardFooter}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`${place.title}のステータスを変更`} disabled={!canEdit} onPress={() => setStatusPlace(place)} style={[styles.status, place.status === 'visited' && styles.statusVisited]}><PlaceStatusIcon status={place.status} /><Text style={styles.statusText}>{status.label}</Text></Pressable>
-            <View style={styles.cardActions}>{itineraryItem || canEdit ? <Pressable accessibilityRole="button" onPress={() => {
+            <Pressable accessibilityRole="button" accessibilityLabel={`${place.title}のステータスを変更`} disabled={!canEdit} onPress={(event) => { setActionOrigin(captureDetailOrigin(event)); setStatusPlace(place); }} style={[styles.status, place.status === 'visited' && styles.statusVisited]}><PlaceStatusIcon status={place.status} /><Text style={styles.statusText}>{status.label}</Text></Pressable>
+            <View style={styles.cardActions}>{itineraryItem || canEdit ? <Pressable accessibilityRole="button" onPress={(event) => {
+              setActionOrigin(captureDetailOrigin(event));
               if (itineraryItem && selectedTrip) {
                 router.push({ pathname: '/trips/[tripId]/itinerary', params: { tripId: selectedTrip.id, itemId: itineraryItem.id } });
               } else { setDay(selectedTrip?.startsOn ?? ''); setCategory('sightseeing'); setPlanning(place); }
@@ -71,15 +76,16 @@ export default function PlacesScreen() {
         </View>;
       })}</View>}
     </ScrollView>
-    {canEdit ? <FloatingAddButton label="場所を追加" onPress={() => open()} /> : null}
-    <MotionPresence>{editing ? <PlaceSheet key={editing === 'new' ? 'new' : editing.id} place={editing === 'new' ? undefined : places.find((place) => place.id === editing.id) ?? editing} onClose={() => setEditing(null)} onPlan={canEdit || (editing !== 'new' && items.some((item) => item.id === editing.itineraryItemId)) ? (place) => {
+    {canEdit ? <FloatingAddButton label="場所を追加" onPress={(event) => open(event)} /> : null}
+    <MotionPresence>{editing ? <PlaceSheet detailOrigin={detailOrigin} key={editing === 'new' ? 'new' : editing.id} place={editing === 'new' ? undefined : places.find((place) => place.id === editing.id) ?? editing} onClose={() => setEditing(null)} onPlan={canEdit || (editing !== 'new' && items.some((item) => item.id === editing.itineraryItemId)) ? (place, origin) => {
+      setActionOrigin(origin);
       setEditing(null);
       const item = items.find((entry) => entry.id === place.itineraryItemId);
       if (item && selectedTrip) router.push({ pathname: '/trips/[tripId]/itinerary', params: { tripId: selectedTrip.id, itemId: item.id } });
       else { setDay(selectedTrip?.startsOn ?? ''); setCategory('sightseeing'); setPlanning(place); }
     } : undefined} /> : null}</MotionPresence>
-    <MotionPresence>{statusPlace ? <FormSheet visible title="ステータスを変更" onClose={() => setStatusPlace(null)}><Text style={styles.placeTitle}>{statusPlace.title}</Text>{placeStatuses.map((entry) => <Pressable accessibilityRole="button" key={entry.value} disabled={!canEdit} onPress={() => { updatePlace(statusPlace.id, { ...statusPlace, status: entry.value }); setStatusPlace(null); }} style={[styles.option, statusPlace.status === entry.value && styles.filterSelected]}><PlaceStatusIcon status={entry.value} /><Text style={styles.optionText}>{entry.label}{statusPlace.status === entry.value ? '　✓' : ''}</Text></Pressable>)}</FormSheet> : null}</MotionPresence>
-    <MotionPresence>{planning ? <FormSheet visible title="しおりに追加" onClose={() => setPlanning(null)} onSave={canEdit ? plan : undefined} saveLabel="追加" canSave={Boolean(day)}><Text style={styles.placeTitle}>{planning.title}</Text><ItineraryCategoryPicker linkedPlace value={category} onChange={setCategory} /><DateRangePicker mode="single" startDate={day} endDate={day} label="訪問日" onChange={(range) => setDay(range.startDate)} /></FormSheet> : null}</MotionPresence>
+    <MotionPresence>{statusPlace ? <FormSheet detailOrigin={actionOrigin} visible title="ステータスを変更" onClose={() => setStatusPlace(null)}><Text style={styles.placeTitle}>{statusPlace.title}</Text>{placeStatuses.map((entry) => <Pressable accessibilityRole="button" key={entry.value} disabled={!canEdit} onPress={() => { updatePlace(statusPlace.id, { ...statusPlace, status: entry.value }); setStatusPlace(null); }} style={[styles.option, statusPlace.status === entry.value && styles.filterSelected]}><PlaceStatusIcon status={entry.value} /><Text style={styles.optionText}>{entry.label}{statusPlace.status === entry.value ? '　✓' : ''}</Text></Pressable>)}</FormSheet> : null}</MotionPresence>
+    <MotionPresence>{planning ? <FormSheet detailOrigin={actionOrigin} visible title="しおりに追加" onClose={() => setPlanning(null)} onSave={canEdit ? plan : undefined} saveLabel="追加" canSave={Boolean(day)}><Text style={styles.placeTitle}>{planning.title}</Text><ItineraryCategoryPicker linkedPlace value={category} onChange={setCategory} /><DateRangePicker mode="single" startDate={day} endDate={day} label="訪問日" onChange={(range) => setDay(range.startDate)} /></FormSheet> : null}</MotionPresence>
   </View>;
 }
 const createStyles = (palette: Palette) => StyleSheet.create({

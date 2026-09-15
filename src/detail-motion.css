@@ -1,0 +1,77 @@
+/* The real dialog stays opaque; only its contents fade. No document snapshot
+   or second live screen is needed for an origin-to-detail transition. */
+.motion-overlay[data-presentation] [data-motion-surface][data-detail-motion]:is(.is-open, .is-closing) {
+  opacity: 1;
+  transform: none;
+  /* Keep an interpolable outline after entrance cleanup. `none` would make
+     the reverse clip jump rather than contract continuously to its origin. */
+  clip-path: inset(0px);
+  filter: none;
+  transition: none !important;
+  animation: none !important;
+  transform-origin: center;
+}
+[data-testid="detail-dismiss-handle"] { display: none !important; }
+@media (max-width: 600px) {
+  [data-testid="detail-dismiss-handle"] {
+    display: flex !important;
+    height: 32px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    cursor: grab;
+  }
+  [data-testid="detail-dismiss-handle"] > div {
+    width: 36px;
+    height: 4px;
+    border-radius: 4px;
+    background: var(--ocean);
+    opacity: .35;
+  }
+}
+.motion-overlay.is-open .motion-viewport[data-detail-drag]::before {
+  opacity: var(--detail-backdrop-opacity, 1);
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="detail-dismiss-handle"] { display: none !important; }
+}
+
+/* A mobile modal expands into the viewport, never into a bottom sheet.
+   The visual-viewport hook owns the outer bounds (including the keyboard).
+   Safe-area padding belongs INSIDE the opaque surface, not in its backdrop. */
+@media (max-width: 1023px) {
+  .motion-overlay :is(
+    [data-testid="form-modal-viewport"],
+    [data-testid="detail-modal-viewport"],
+    [data-testid="note-modal-viewport"],
+    [data-testid="modal-viewport"]:has([data-testid="picker-sheet"])
+  ) {
+    padding: 0 !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    min-height: 0;
+  }
+  .motion-overlay :is(
+    [data-testid="form-sheet"],
+    [data-testid="picker-sheet"],
+    [data-testid="note-editor"]
+  ) {
+    box-sizing: border-box;
+    flex: 1 1 0% !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    max-height: 100% !important;
+    min-height: 0;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    padding-right: env(safe-area-inset-right, 0px) !important;
+    padding-bottom: max(0px, calc(env(safe-area-inset-bottom, 0px) - var(--modal-bottom-occlusion, 0px))) !important;
+    padding-left: env(safe-area-inset-left, 0px) !important;
+  }
+  .motion-overlay [data-testid="form-sheet-fill"] { min-height: 0; }
+  /* Confirmation dialogs and menus intentionally keep their compact UI. */
+}

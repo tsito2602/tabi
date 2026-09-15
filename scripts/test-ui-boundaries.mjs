@@ -11,7 +11,7 @@ const require = createRequire(import.meta.url);
 function load(file, mocks, extra = '', define = {}) {
   const { code } = transformSync(readFileSync(file, 'utf8') + extra, { loader: 'tsx', format: 'cjs', jsx: 'automatic', define });
   const module = { exports: {} };
-  new Function('require', 'module', 'exports', code)((name) => name in mocks ? mocks[name] : require(name), module, module.exports);
+  new Function('require', 'module', 'exports', code)((name) => name === '@/utils/detail-origin' ? { captureDetailOrigin: () => undefined } : name in mocks ? mocks[name] : require(name), module, module.exports);
   return module.exports;
 }
 const noop = () => undefined;
