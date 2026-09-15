@@ -4,6 +4,7 @@ import { Appearance, Platform, useColorScheme } from 'react-native';
 import { darkPalette, lightPalette, type Palette } from '@/constants/design';
 import { normalizeThemePreference, resolveTheme, THEME_KEY, type ThemePreference } from './preferences';
 import { readTheme, writeTheme } from './storage';
+import { installWebUiOverrides } from './web-ui-overrides';
 
 type ThemeValue = { preference: ThemePreference; scheme: 'light' | 'dark'; palette: Palette; setPreference: (preference: ThemePreference) => void; storageError: string };
 const ThemeContext = createContext<ThemeValue>({ preference: 'system', scheme: 'light', palette: lightPalette, setPreference: () => undefined, storageError: '' });
@@ -17,6 +18,7 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
   const writes = useRef(Promise.resolve());
   const scheme = resolveTheme(preference, systemScheme);
   const palette = scheme === 'dark' ? darkPalette : lightPalette;
+  useEffect(() => installWebUiOverrides(), []);
   useEffect(() => {
     let active = true;
     void readTheme().then((value) => { if (active && !touched.current) setPreferenceState(normalizeThemePreference(value)); }).catch(() => undefined).finally(() => { if (active) setReady(true); });

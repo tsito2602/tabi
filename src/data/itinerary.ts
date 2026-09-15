@@ -1,3 +1,4 @@
+import { applyItineraryPlacements } from './itinerary-placement';
 import type { ItineraryCategory, ItineraryDetails, ItineraryItem, TransportMode } from './types';
 
 export const itineraryCategories: { value: ItineraryCategory; label: string; icon: string; ios: string }[] = [
@@ -52,7 +53,7 @@ export function itineraryDetailsError(day: string, time: string, details: Itiner
 // Keep an untimed transfer beside its preceding event. If that event is removed
 // or moved to another day, the normal chronological order remains the fallback.
 export function orderItineraryEntries<T extends { key: string; day: string; time: string; item?: ItineraryItem }>(entries: T[]): T[] {
-  const sorted = [...entries].sort((left, right) => left.day.localeCompare(right.day) || (left.time || '99:99').localeCompare(right.time || '99:99') || Number(Boolean(left.item && itemDetails(left.item).category === 'transport')) - Number(Boolean(right.item && itemDetails(right.item).category === 'transport')) || left.key.localeCompare(right.key));
+  const sorted = applyItineraryPlacements([...entries].sort((left, right) => left.day.localeCompare(right.day) || (left.time || '99:99').localeCompare(right.time || '99:99') || Number(Boolean(left.item && itemDetails(left.item).category === 'transport')) - Number(Boolean(right.item && itemDetails(right.item).category === 'transport')) || left.key.localeCompare(right.key)));
   for (const entry of [...sorted]) {
     const details = entry.item && itemDetails(entry.item);
     if (details?.category !== 'transport' || !details.transport?.afterKey) continue;

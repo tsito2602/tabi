@@ -1,7 +1,6 @@
 import type { GestureResponderEvent } from 'react-native';
 import { captureDetailOrigin, type DetailOrigin } from '@/utils/detail-origin';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
-import { MotionTabs } from '@/components/motion-tabs';
 import { ItineraryArrivalRow } from '@/components/itinerary-arrival-row';
 import { cancelItineraryArrival, hasItineraryArrival, itineraryItemOffset, takeItineraryArrival } from '@/utils/itinerary-arrival';
 import { MotionPresence } from '@/components/motion-presence';
@@ -9,7 +8,12 @@ import { BOOKING_STAGES, itineraryTimeline, type TimelineEntry } from '@/data/it
 import { bookingDurationLabel } from '@/data/booking-duration';
 import { usePalette, useThemedStyles } from '@/theme/theme-provider';
 import { useDesktop } from '@/hooks/use-desktop';
-import { PageHeading } from '@/components/page-heading';
+import { useItineraryComposer } from '@/hooks/use-itinerary-composer';
+import { PlannerDrag, PlannerCard, PlannerEntry, PlannerDay, PlannerHandle, PlannerSlot } from '@/components/planner-drag';
+import { PlannerCandidates } from '@/components/planner-candidates';
+import { PlannerTimeSheet } from '@/components/planner-time-sheet';
+import { SurfaceCard, CardContent } from '@/components/ui/surface-card';
+import { ActionButton } from '@/components/ui/action-button';
 import { useToast } from '@/components/toast';
 import { TripHero, useTripHero } from '@/components/trip-hero';
 import { useTripHeaderHeight } from '@/components/trip-header-context';
@@ -121,6 +125,7 @@ function timeZoneLabel(entry: TimelineEntry) {
 
 export default function ItineraryScreen() {
   const reduced = useReducedMotion();
+  const composer = useItineraryComposer();
   const [detailOrigin, setDetailOrigin] = useState<DetailOrigin>();
   const palette = usePalette();
   const styles = useThemedStyles(createStyles);
@@ -361,6 +366,7 @@ export default function ItineraryScreen() {
     const error = itineraryDetailsError(day, time, details) || (details.endDay && !details.endTime ? '終了・到着時刻を入力するか、日時を外してください' : '');
     if (error) { setFormError(error); return; }
     const originalItem = items.find((item) => item.id === editingId);
+    if (originalItem && (originalItem.day !== day || originalItem.time !== time)) details.placement = null;
     const input = editingPlace && originalItem ? { ...originalItem, day, time, details } : { day, time, kind: '予定', title: savedTitle.slice(0, 160), note: note.trim(), details };
     if (editingId) updateItem(editingId, input);
     else createItem(input);
@@ -378,14 +384,10 @@ export default function ItineraryScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={[]}>
-      {desktop ? <>
-        <View style={{ position: 'absolute', top: headerHeight + 20, left: 32, right: 32 }}><PageHeading title="しおり" count={`${itineraryDates.length}日間`} /></View>
-        <ScrollView testID="desktop-day-index" style={{ position: 'absolute', top: headerHeight + 100, bottom: 24, left: 32, width: 150 }} contentContainerStyle={{ gap: 6 }}>
-          {itineraryDates.map((date, index) => <Pressable key={date} accessibilityRole="button" accessibilityLabel={`${index + 1}日目 ${shortDate(date)}へ移動`} accessibilityState={{ selected: date === visibleActiveDay }} onPress={() => scrollToDay(date)} style={{ padding: 14, borderRadius: 12, gap: 5, backgroundColor: date === visibleActiveDay ? palette.sky : 'transparent' }}><Text style={{ color: palette.ocean, fontSize: 11, fontWeight: '700' }}>{index + 1}日目</Text><Text style={{ color: palette.ink, fontSize: 18, fontWeight: '700' }}>{shortDate(date)}</Text><Text style={{ color: palette.smoke, fontSize: 11 }}>{grouped[date]?.length ?? 0}件の予定</Text></Pressable>)}
-        </ScrollView>
-      </> : null}
+      <PlannerDrag enabled={composer.enabled} source={composer.source} onSelect={composer.select} onDrop={composer.drop} onDay={scrollToDay}>
+      <View testID="planner-layout" style={{ flex: 1, minHeight: 0, marginTop: headerHeight, flexDirection: desktop ? 'row' : 'column' }}>
       <ScrollView
-        testID="itinerary-scroll" style={{ marginTop: headerHeight + (desktop ? 98 : 0), marginLeft: desktop ? 200 : 0 }}
+        testID="itinerary-scroll" style={{ flex: 1, minWidth: 0, minHeight: 0 }}
         stickyHeaderIndices={[1]}
         contentContainerStyle={styles.scrollContent}
         onContentSizeChange={scheduleRequestedScroll}
@@ -401,18 +403,26 @@ export default function ItineraryScreen() {
           {!desktop ? <View style={styles.journalSheet}><View style={styles.content}><View style={styles.sheetIntro}><Text style={styles.journalLabel}>しおり</Text><Text style={styles.journalCount}>{itineraryDates.length}日間</Text></View></View></View> : null}
         </View>
         <View testID="itinerary-day-bar" onLayout={(event) => setDayBarHeight(event.nativeEvent.layout.height)} style={styles.dayNavSticky}>
-          {selectedTrip && itineraryDates.length ? <ScrollView testID="itinerary-day-tabs" ref={dateScrollRef} onLayout={(event) => { dateViewport.current = event.nativeEvent.layout.width; }} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}><MotionTabs style={styles.dayTabs}>
+          <View style={styles.composerToolbar}>
+            <Text accessibilityRole="header" style={styles.composerTitle}>{composer.enabled ? '予定を組む' : 'しおり'}</Text>
+            {canEdit ? <ActionButton testID="planner-toggle" label={composer.enabled ? '編集を終える' : '予定を組む'} variant={composer.enabled ? 'primary' : 'secondary'} disabled={composer.linkPending}
+              onPress={() => { composer.toggle(); if (!composer.enabled && visibleActiveDay) requestAnimationFrame(() => scrollToDay(visibleActiveDay)); }} /> : null}
+          </View>
+          {composer.source ? <View style={styles.composerMessage}><Text accessibilityLiveRegion="polite" style={styles.composerCaption}>{composer.sourceTitle} · 配置先を選択</Text><ActionButton label="キャンセル" variant="quiet" onPress={composer.cancel} /></View> : null}
+          {composer.notice ? <View style={styles.composerMessage}><Text accessibilityLiveRegion="polite" style={styles.composerCaption}>{composer.notice}</Text>{composer.canUndo ? <ActionButton label="取り消す" variant="quiet" onPress={composer.undo} /> : null}<ActionButton label="閉じる" variant="quiet" onPress={composer.dismissNotice} /></View> : null}
+          {composer.error ? <View style={styles.composerMessage}><Text accessibilityRole="alert" style={[styles.composerCaption, { color: palette.danger }]}>{composer.error}</Text>{composer.linkPending ? <ActionButton label="再試行" onPress={composer.retry} /> : null}</View> : null}
+          {selectedTrip && itineraryDates.length ? <ScrollView testID="itinerary-day-tabs" ref={dateScrollRef} onLayout={(event) => { dateViewport.current = event.nativeEvent.layout.width; }} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}><View accessibilityRole="tablist" style={styles.dayTabs}>
             {itineraryDates.map((date, index) => {
               const selected = date === visibleActiveDay;
-              return <Pressable accessibilityRole="tab" aria-selected={selected} onLayout={(event) => { dateTabOffsets.current[date] = event.nativeEvent.layout; }} key={date} onPress={() => scrollToDay(date)} style={[styles.dayTab, selected && styles.dayTabSelected]}>
+              return <View key={date} onLayout={(event) => { dateTabOffsets.current[date] = event.nativeEvent.layout; }}><PlannerDay day={date}><Pressable accessibilityRole="tab" aria-selected={selected} accessibilityLabel={`${index + 1}日目 ${shortDate(date)}`} onPress={() => scrollToDay(date)} style={[styles.dayTab, selected && styles.dayTabSelected]}>
                 <Text style={[styles.dayTabLabel, selected && styles.dayTabLabelSelected]}>{index + 1}日目</Text>
                 <Text style={[styles.dayTabDate, selected && styles.dayTabDateSelected]}>{shortDate(date)}</Text>
-              </Pressable>;
+              </Pressable></PlannerDay></View>;
             })}
-          </MotionTabs></ScrollView> : null}
+          </View></ScrollView> : null}
         </View>
-        <View onLayout={(event) => { sheetOffset.current = event.nativeEvent.layout.y; layoutReady.current.sheet = true; scheduleRequestedScroll(); }} style={[styles.journalBody, { minHeight: windowHeight - headerHeight }]}>
-        <View style={[styles.content, { paddingBottom: Math.max(128, windowHeight - headerHeight - dayBarHeight - 100) }]}>
+        <View onLayout={(event) => { sheetOffset.current = event.nativeEvent.layout.y; layoutReady.current.sheet = true; scheduleRequestedScroll(); }} style={[styles.journalBody, { minHeight: composer.enabled ? 0 : windowHeight - headerHeight }]}>
+        <View style={[styles.content, { paddingBottom: composer.enabled ? 80 : Math.max(128, windowHeight - headerHeight - dayBarHeight - 100) }]}>
         {pendingCount ? <Text style={styles.pending}>{pendingCount}件を端末に保存済み · オンライン時に同期</Text> : null}
 
         {!selectedTrip ? (
@@ -430,73 +440,73 @@ export default function ItineraryScreen() {
                     const details = entry.item ? [itemCategory(entry.item).label, ...(itemDetails(entry.item).location ? [itemDetails(entry.item).location] : [])] : [...bookingDetails(entry), entry.booking?.kind === 'flight' ? '' : bookingDurationLabel(entry.booking!)].filter(Boolean);
                     const isTransport = entry.item && itemDetails(entry.item).category === 'transport';
                     const previous = dateItems[entryIndex - 1], next = dateItems[entryIndex + 1];
-                    const previousTransport = previous?.item && itemDetails(previous.item).category === 'transport';
-                    const nextTransport = next?.item && itemDetails(next.item).category === 'transport';
                     const category = entry.item ? itemCategory(entry.item) : undefined;
-                    const isLinkedStart = entry.bookingEndpoint === 'start' && Boolean(entry.booking?.endTime);
                     const isLinkedEnd = entry.bookingEndpoint === 'end';
                     const connection = isLinkedEnd && entry.booking ? connectionByArrival.get(entry.booking.id) : undefined;
-                    const isConnectedDeparture = entry.bookingEndpoint === 'start' && Boolean(entry.booking && connectedDepartures.has(entry.booking.id));
                     return (
                     <ItineraryArrivalRow key={entry.key} reduced={reduced} testID={`itinerary-entry-${entry.key}`}
                       waiting={Boolean(entry.item && arrivalRow?.id === entry.item.id && !arrivalRow.playing)}
-                      entering={Boolean(entry.item && arrivalRow?.id === entry.item.id && arrivalRow.playing)}
+                      entering={Boolean(entry.item && ((arrivalRow?.id === entry.item.id && arrivalRow.playing) || composer.placedId === entry.item.id))}
+                      sequence={entry.item && composer.placedId === entry.item.id ? composer.placementSequence : 0}
                       onInterrupt={interruptArrival}
                       onLayout={(event) => {
                         if (entry.item) itemOffsets.current[entry.item.id] = { day: date, y: event.nativeEvent.layout.y };
                         scheduleRequestedScroll();
                       }}>
-                    {isTransport ? <TransportRow item={entry.item!} hasPrevious={Boolean(previous)} hasNext={Boolean(next)} onPress={(event) => { setDetailOrigin(captureDetailOrigin(event)); setViewingItemId(entry.item!.id); }} /> : <Pressable
-                      accessibilityHint={entry.booking ? '予約の詳細を開きます' : '予定の詳細を開きます'}
-                      accessibilityRole="button"
-                      onPress={(event) => { setDetailOrigin(captureDetailOrigin(event)); if (entry.booking) setViewingBookingId(entry.booking.id); else setViewingItemId(entry.item!.id); }}
-                      style={({ pressed }) => [styles.itemRow, (isLinkedStart || isLinkedEnd) && styles.linkedBookingRow, pressed && styles.itemPressed]}>
+                    <PlannerSlot slot={{ day: date, beforeKey: entry.key, afterKey: previous?.key ?? null }}
+                      disabled={Boolean((composer.source?.kind === 'item' && (entry.item?.id === composer.source.id || previous?.item?.id === composer.source.id)) || (isTransport && itemDetails(entry.item!).transport?.afterKey === previous?.key))}
+                      label={`${shortDate(date)} ${entryTitle(entry)}の前に配置`} />
+                    <PlannerEntry entryKey={entry.key}>
+                    {isTransport ? <TransportRow item={entry.item!} hasPrevious={Boolean(previous)} hasNext={Boolean(next)} onPress={(event) => { setDetailOrigin(captureDetailOrigin(event)); setViewingItemId(entry.item!.id); }} /> : <View style={styles.itemRow}>
                       <View style={styles.timeColumn}>
-                        <Text testID={entry.bookingEndpoint === 'end' ? 'detail-source-time-end' : 'detail-source-time'} style={styles.time}>{entry.time || '—'}</Text>
+                        <Text testID={entry.bookingEndpoint === 'end' ? 'detail-source-time-end' : 'detail-source-time'} style={styles.time}>{entry.time || '未定'}</Text>
                         <Text style={styles.timeZone}>{entry.item ? itemEndLabel(entry.item) ? `〜 ${itemEndLabel(entry.item)}` : '' : timeZoneLabel(entry)}</Text>
                       </View>
-                      <View style={styles.railColumn}>
-                        {previousTransport ? <View style={[styles.connectionRail, styles.railTop]} /> : null}
-                        {nextTransport ? <View style={[styles.connectionRail, styles.railBottom]} /> : null}
-                        {isLinkedEnd ? <View style={[styles.rail, styles.railTop, styles.linkedRail]} /> : isConnectedDeparture ? <View style={[styles.connectionRail, styles.railTop]} /> : null}
-                        {isLinkedStart ? <View style={[styles.rail, styles.railBottom, styles.linkedRail]} /> : null}
-                        {connection ? <View style={[styles.connectionRail, styles.railBottom]} /> : null}
-                        <View style={[styles.iconCircle, entry.booking && styles.bookingIconCircle, isLinkedEnd && styles.bookingEndIconCircle]}>
-                          <SymbolView
-                            name={entry.booking?.kind === 'flight'
+                      <PlannerCard><SurfaceCard testID="itinerary-card" selected={Boolean(entry.item && composer.source?.kind === 'item' && composer.source.id === entry.item.id)}>
+                        <View style={styles.cardRow}>
+                          <CardContent title={entryTitle(entry)}
+                            accessibilityLabel={`${entry.time || '時刻未定'} ${entryTitle(entry)}の詳細を開く`}
+                            onPress={(event) => { setDetailOrigin(captureDetailOrigin(event)); if (entry.booking) setViewingBookingId(entry.booking.id); else setViewingItemId(entry.item!.id); }}
+                            icon={<SymbolView name={entry.booking?.kind === 'flight'
                               ? isLinkedEnd ? { ios: 'airplane.arrival', android: 'flight_land', web: 'flight_land' } : { ios: 'airplane.departure', android: 'flight_takeoff', web: 'flight_takeoff' }
                               : entry.booking ? BOOKING_ICONS[entry.booking.kind] : { ios: category!.ios, android: category!.icon, web: category!.icon } as SymbolName}
-                            size={21}
-                            weight="semibold"
-                            tintColor={entry.booking && !isLinkedEnd ? palette.paper : palette.ocean}
-                          />
+                              size={20} tintColor={palette.smoke} />}
+                            meta={details.filter(Boolean).join(' · ')}>
+                            {composer.enabled && entry.booking ? <Text style={styles.fixedCaption}>予約の日時は固定</Text> : null}
+                          </CardContent>
+                          {entry.item ? <PlannerHandle label={entryTitle(entry)} source={{ kind: 'item', id: entry.item.id }} disabled={composer.linkPending} /> : null}
                         </View>
-                      </View>
-                      <View style={[styles.itemCopy, entryIndex < dateItems.length - 1 && !nextTransport && styles.itemDivider]}>
-                        <Text testID="detail-source-title" style={styles.itemTitle}>{entryTitle(entry)}</Text>
-                        {details.map((detail, index) => <Text key={`${entry.key}-detail-${index}`} style={[styles.note, index === 0 && styles.bookingTag]}>{detail}</Text>)}
-                      </View>
-                      <Text style={styles.chevron}>›</Text>
-                    </Pressable>}
+                      </SurfaceCard></PlannerCard>
+                    </View>}
+                    </PlannerEntry>
                     {connection ? <ConnectionRow disabled={!canEdit} connection={connection} continueRail={connectedDepartures.has(connection.departureBookingId)} nextFlight={bookings.find((flight) => flight.id === connection.departureBookingId)} onPress={(event) => { setConnectionOrigin(captureDetailOrigin(event)); setConnectionBookingId(connection.arrivalBookingId); }} />
                       : canEdit && isLinkedEnd && entry.booking?.kind === 'flight' && hasLikelyFlightConnection(entry.booking, bookings)
                         ? <View style={styles.connectionAction}><FlightConnectionLink compact booking={entry.booking} onPress={(event) => { setConnectionOrigin(captureDetailOrigin(event)); setConnectionBookingId(entry.booking!.id); }} /></View> : null}
                     </ItineraryArrivalRow>
                     );
                   })}
-                </View> : <View style={styles.emptyRow}>
+                  <PlannerSlot slot={{ day: date, beforeKey: null, afterKey: dateItems.at(-1)?.key ?? null }}
+                    disabled={composer.source?.kind === 'item' && dateItems.at(-1)?.item?.id === composer.source.id} label={`${shortDate(date)}の最後に配置`} />
+                </View> : <View><PlannerSlot slot={{ day: date, beforeKey: null, afterKey: null }} label={`${shortDate(date)}に配置`} /><View style={styles.emptyRow}>
                   <View style={styles.timeColumn}><Text style={styles.emptyTime}>—</Text></View>
                   <View style={styles.railColumn}><View style={styles.emptyIconCircle}><SymbolView name={EMPTY_ICON} size={18} tintColor={palette.smoke} /></View></View>
                   <Text style={styles.emptyDay}>予定はまだありません</Text>
-                </View>}
+                </View></View>}
             </View>
           );
         })}</View>}
         </View>
         </View>
       </ScrollView>
+      {composer.enabled ? <PlannerCandidates source={composer.source} onSelect={composer.select} onViewItem={(id) => {
+        const item = items.find(entry => entry.id === id);
+        if (!item) return;
+        interruptArrival(); requestedItem.current = id; pendingScrollDay.current = item.day; scheduleRequestedScroll();
+      }} /> : null}
+      </View></PlannerDrag>
+      <MotionPresence>{composer.pending ? <PlannerTimeSheet key={`${composer.pending.source.id}:${composer.pending.slot.day}`} placement={composer.pending} error={composer.error} onClose={composer.cancel} onConfirm={composer.confirmTime} /> : null}</MotionPresence>
 
-      {selectedTrip && canEdit ? <FloatingAddButton label="予定を追加する" onPress={openAdd} /> : null}
+      {selectedTrip && canEdit && !composer.enabled ? <FloatingAddButton label="予定を追加する" onPress={openAdd} /> : null}
       <MotionPresence>{connectionBookingId ? <FlightConnectionSheet detailOrigin={connectionOrigin} bookingId={connectionBookingId} onClose={() => setConnectionBookingId(null)} /> : null}</MotionPresence>
 
       <MotionPresence>{viewingBooking ? <BookingSheet detailOrigin={detailOrigin} key={`${selectedTrip?.id}:${viewingBooking.id}`} booking={viewingBooking} onClose={() => setViewingBookingId(null)} /> : null}</MotionPresence>
@@ -579,8 +589,14 @@ function ConnectionRow({ connection, continueRail, nextFlight, onPress, disabled
 
 const createStyles = (palette: Palette) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: 'transparent' },
+  composerToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 8, gap: 12 },
+  composerTitle: { color: palette.ink, fontSize: 17, lineHeight: 24, fontWeight: '600' },
+  composerMessage: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, gap: 8, paddingBottom: 6 },
+  composerCaption: { flex: 1, minWidth: 0, color: palette.slate, fontSize: 13, lineHeight: 20 },
+  cardRow: { flexDirection: 'row', alignItems: 'center', minWidth: 0 },
+  fixedCaption: { color: palette.smoke, fontSize: 12, lineHeight: 18 },
   scrollContent: { flexGrow: 1 },
-  journalSheet: { backgroundColor: palette.canvas, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden' },
+  journalSheet: { backgroundColor: palette.canvas, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
   journalBody: { backgroundColor: palette.canvas },
   sheetIntro: { paddingTop: 24, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   journalLabel: { color: palette.ocean, fontSize: 10, fontWeight: '700', letterSpacing: 2 },
@@ -588,34 +604,34 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   content: { width: '100%', maxWidth: 800, alignSelf: 'center', paddingHorizontal: 20 },
   dayNavSticky: { zIndex: 4, paddingVertical: 6, backgroundColor: palette.canvas, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.ash },
   dayTabs: { flexDirection: 'row', gap: 8, paddingHorizontal: 20 },
-  dayTab: { minWidth: 68, minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.mist, paddingHorizontal: 12 },
-  dayTabSelected: { backgroundColor: palette.ocean },
-  dayTabLabel: { color: palette.slate, fontSize: 13, lineHeight: 17, fontWeight: '800' },
-  dayTabLabelSelected: { color: palette.onOcean },
-  dayTabDate: { color: palette.smoke, fontFamily: mono, fontSize: 9, lineHeight: 13, marginTop: 1 },
-  dayTabDateSelected: { color: palette.onOcean },
+  dayTab: { minWidth: 62, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.mist, paddingHorizontal: 12 },
+  dayTabSelected: { backgroundColor: palette.sky },
+  dayTabLabel: { color: palette.slate, fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  dayTabLabelSelected: { color: palette.ocean },
+  dayTabDate: { color: palette.smoke, fontFamily: mono, fontSize: 11, lineHeight: 16, marginTop: 1 },
+  dayTabDateSelected: { color: palette.ocean },
   pending: { color: palette.slate, fontFamily: mono, fontSize: 11, marginTop: 4 },
   empty: { minHeight: 430, alignItems: 'center', justifyContent: 'center', padding: 32 },
   emptyMark: { color: palette.accent, fontSize: 42, fontWeight: '900' },
   emptyTitle: { color: palette.ink, fontSize: 28, lineHeight: 30, fontWeight: '900', letterSpacing: -0.8, marginTop: 14 },
   emptyBody: { color: palette.slate, textAlign: 'center', marginTop: 7 },
-  timeline: { marginHorizontal: -20 },
-  transportRow: { minHeight: 80, flexDirection: 'row', alignItems: 'stretch', paddingHorizontal: 16 },
-  transportTime: { width: 64, justifyContent: 'center' },
+  timeline: { gap: 24 },
+  transportRow: { minHeight: 64, flexDirection: 'row', alignItems: 'stretch' },
+  transportTime: { width: 48, alignItems: 'flex-end', justifyContent: 'center' },
   transportTimeText: { color: palette.slate, fontFamily: mono, fontSize: 12, fontWeight: '600' },
   transportIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: palette.paper, alignItems: 'center', justifyContent: 'center' },
   transportMode: { color: palette.ocean, fontSize: 12, fontWeight: '700' },
-  daySection: { backgroundColor: palette.paper },
-  dateBar: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.mist, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: palette.ash, paddingHorizontal: 20, position: 'relative', zIndex: 2 },
-  dateBarDivider: { borderTopWidth: StyleSheet.hairlineWidth },
+  daySection: { backgroundColor: palette.canvas },
+  dateBar: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.canvas, paddingHorizontal: 0, position: 'relative', zIndex: 2 },
+  dateBarDivider: {},
   date: { flex: 1, color: palette.ink, fontSize: 12, lineHeight: 18, fontWeight: '700', marginRight: 12 },
-  dateDay: { color: palette.ocean, fontFamily: mono, fontSize: 10, lineHeight: 14, fontWeight: '700' },
-  itemRow: { minHeight: 104, flexDirection: 'row', alignItems: 'stretch', paddingHorizontal: 16 },
+  dateDay: { color: palette.smoke, fontFamily: mono, fontSize: 11, lineHeight: 16, fontWeight: '500' },
+  itemRow: { minHeight: 88, flexDirection: 'row', alignItems: 'stretch', gap: 10, paddingVertical: 4 },
   linkedBookingRow: { backgroundColor: palette.soft },
   itemPressed: { opacity: 0.55 },
-  timeColumn: { width: 64, alignItems: 'flex-end', paddingTop: 20, paddingRight: 6 },
-  time: { color: palette.ink, fontFamily: mono, fontSize: 15, lineHeight: 20, fontWeight: '800' },
-  timeZone: { color: palette.smoke, fontFamily: mono, fontSize: 10, lineHeight: 15, marginTop: 2 },
+  timeColumn: { width: 48, flexShrink: 0, alignItems: 'flex-end', paddingTop: 18 },
+  time: { color: palette.ink, fontFamily: mono, fontSize: 13, lineHeight: 20, fontWeight: '600' },
+  timeZone: { color: palette.smoke, fontSize: 11, lineHeight: 16, marginTop: 2, textAlign: 'right' },
   railColumn: { width: 50, alignItems: 'center', position: 'relative' },
   rail: { position: 'absolute', left: 24, width: 2, backgroundColor: palette.accent },
   linkedRail: { backgroundColor: palette.ocean },
@@ -625,8 +641,8 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   iconCircle: { width: 42, height: 42, borderRadius: 21, marginTop: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft, borderWidth: 2, borderColor: palette.accent, zIndex: 1 },
   bookingIconCircle: { backgroundColor: palette.ocean, borderColor: palette.ocean },
   bookingEndIconCircle: { backgroundColor: palette.paper, borderColor: palette.ocean },
-  connectionRow: { minHeight: 76, flexDirection: 'row', alignItems: 'stretch', paddingHorizontal: 16, backgroundColor: palette.mist },
-  connectionTimeColumn: { width: 64 },
+  connectionRow: { minHeight: 64, flexDirection: 'row', alignItems: 'stretch', marginLeft: 58 },
+  connectionTimeColumn: { width: 0 },
   connectionRailColumn: { width: 50, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   connectionRailFull: { position: 'absolute', top: 0, bottom: 0, left: 24, width: 0, borderLeftWidth: 2, borderColor: palette.smoke, borderStyle: 'dashed' },
   connectionRailEnding: { bottom: '50%' },
@@ -637,14 +653,14 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   connectionDuration: { color: palette.ocean, fontSize: 15, lineHeight: 21, fontWeight: '800' },
   connectionNext: { color: palette.slate, fontSize: 11, lineHeight: 17 },
   connectionChevron: { color: palette.ocean, alignSelf: 'center', fontSize: 22, marginLeft: 8 },
-  connectionAction: { paddingLeft: 130, paddingRight: 16, paddingBottom: 12, backgroundColor: palette.soft },
+  connectionAction: { paddingLeft: 58, paddingBottom: 12 },
   itemCopy: { flex: 1, justifyContent: 'center', paddingVertical: 18, paddingLeft: 8 },
   itemDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.ash },
-  bookingTag: { color: palette.ocean, fontWeight: '700' },
+  bookingTag: { color: palette.smoke, fontWeight: '500' },
   itemTitle: { color: palette.ink, fontSize: 17, lineHeight: 22, fontWeight: '800' },
   note: { color: palette.slate, fontSize: 12, lineHeight: 17, marginTop: 3 },
   chevron: { color: palette.smoke, alignSelf: 'center', fontSize: 22, lineHeight: 22, marginLeft: 8 },
-  emptyRow: { minHeight: 82, flexDirection: 'row', alignItems: 'stretch', paddingHorizontal: 16 },
+  emptyRow: { minHeight: 82, flexDirection: 'row', alignItems: 'stretch' },
   emptyTime: { color: palette.smoke, fontFamily: mono, fontSize: 14 },
   emptyIconCircle: { width: 36, height: 36, borderRadius: 18, marginTop: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.mist },
   emptyDay: { flex: 1, alignSelf: 'center', color: palette.smoke, fontSize: 13, lineHeight: 19, paddingLeft: 8 },
@@ -655,9 +671,9 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   save: { color: palette.ocean, fontWeight: '700' },
   form: { padding: 20, gap: 9 },
   label: { color: palette.slate, fontFamily: mono, fontSize: 11, fontWeight: '400', marginTop: 10 },
-  input: { minHeight: 50, backgroundColor: palette.paper, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 14, color: palette.ink, fontSize: 16 },
+  input: { minHeight: 50, backgroundColor: palette.paper, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, color: palette.ink, fontSize: 16 },
   planDetails: { gap: 22 },
-  planTitle: { color: palette.ink, fontSize: 28, lineHeight: 36, fontWeight: '800' },
+  planTitle: { color: palette.ink, fontSize: 24, lineHeight: 33, fontWeight: '600' },
   planDate: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   planDateText: { color: palette.slate, fontSize: 15, lineHeight: 22, flexShrink: 1 },
   planNote: { gap: 4 },

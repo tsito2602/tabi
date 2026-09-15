@@ -1,5 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 import { validDate } from '../src/utils/dates';
+import { parseItineraryPlacement } from '../src/data/itinerary-placement';
 import { itineraryCategories, transportModes, itineraryDetailsError } from '../src/data/itinerary';
 import type { ItineraryDetails } from '../src/data/types';
 import { mapUrl, referenceUrl } from '../src/data/places';
@@ -305,6 +306,11 @@ function parseItineraryDetails(value: unknown, day: string, time: string): Itine
   const endTime = textField(value.endTime, 5);
   if (location === null || (endDay && !validDate(endDay)) || endDay === null || endTime === null || !/^([01]\d|2[0-3]):[0-5]\d$|^$/.test(endTime) || Boolean(endDay) !== Boolean(endTime)) return null;
   const details: ItineraryDetails = { category: value.category as ItineraryDetails['category'], location, endDay, endTime };
+  if (value.placement !== undefined) {
+    const placement = parseItineraryPlacement(value.placement);
+    if (value.placement !== null && !placement) return null;
+    details.placement = placement;
+  }
   if (value.category === 'transport') {
     const transport = value.transport;
     if (!isObject(transport) || typeof transport.origin !== 'string' || typeof transport.destination !== 'string' || !transportModes.some((mode) => mode.value === transport.mode)) return null;
@@ -318,10 +324,16 @@ function parseItineraryDetails(value: unknown, day: string, time: string): Itine
   return itineraryDetailsError(day, time, details) ? null : details;
 }
 
+// An older/offline editor omitting placement must not silently clear it.
+// Explicit null clears the order; changed dates/times invalidate stale anchors.
 function itineraryDetailsStatement(env: Env, itemId: string, tripId: string, details?: ItineraryDetails) {
   return env.DB.prepare(`INSERT INTO itinerary_details (item_id, details)
     SELECT ?, ? WHERE EXISTS (SELECT 1 FROM itinerary_items WHERE id = ? AND trip_id = ?)
-    ON CONFLICT(item_id) DO UPDATE SET details = COALESCE(excluded.details, itinerary_details.details)`)
+    ON CONFLICT(item_id) DO UPDATE SET details = CASE
+      WHEN excluded.details IS NULL THEN itinerary_details.details
+      WHEN json_type(excluded.details, '$.placement') IS NULL
+        THEN json_patch(excluded.details, json_object('placement', json_extract(itinerary_details.details, '$.placement')))
+      ELSE excluded.details END`)
     .bind(itemId, details === undefined ? null : JSON.stringify(details), itemId, tripId);
 }
 

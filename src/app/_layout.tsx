@@ -4,6 +4,7 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { AppThemeProvider, useAppTheme } from '@/theme/theme-provider';
 import '@/global.css';
 import '@/motion.css';
+import '@/redesign.css';
 import { WebWorkspace } from '@/components/web-workspace';
 import { ToastProvider } from '@/components/toast';
 import { PwaSetup } from '@/components/pwa';

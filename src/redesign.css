@@ -1,0 +1,241 @@
+/* Neutral surfaces are shared by every route. Blue communicates an action,
+   selection or placement, never the default canvas or ordinary body copy. */
+:root {
+  --canvas: #F7F7F5; --paper: #FFFFFF; --ink: #242424; --ocean: #496B80;
+  --mist: #EFEFEC; --soft: #F3F3F0; --sky: #E8EEF2; --accent: #496B80;
+  --ash: #DDDDD7; --smoke: #62625F; --slate: #555552; --danger: #B42318;
+  --on-ocean: #FFFFFF; --glass: #f7f7f5eb; --glass-strong: #fffffff5;
+  --glass-line: #0000000f; --drop-fill: #FFFFFF; --overlay: #00000052;
+  --shadow-float: 0 18px 48px #00000024, 0 3px 10px #00000018;
+  --radius-card: 16px; --radius-control: 12px; --radius-dialog: 20px;
+}
+:root[data-theme="dark"] {
+  --canvas: #141416; --paper: #202023; --ink: #F5F5F3; --ocean: #A1BDCC;
+  --mist: #2B2B2F; --soft: #252528; --sky: #28343B; --accent: #A1BDCC;
+  --ash: #3B3B40; --smoke: #B8B8B2; --slate: #C6C6C0; --danger: #FF6961;
+  --on-ocean: #141416; --glass: #141416eb; --glass-strong: #202023f5;
+  --glass-line: #ffffff1a; --drop-fill: #202023; --overlay: #0000008f;
+  --shadow-float: 0 20px 50px #00000070, 0 3px 12px #00000040;
+}
+html, body { color: var(--ink); background: var(--canvas); }
+input:focus, textarea:focus { box-shadow: 0 0 0 2px var(--ocean); }
+input, textarea, select { caret-color: var(--ocean); }
+[data-testid="trip-header"] { border-bottom-color: var(--ash); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+[data-testid="home-header"] { background: var(--glass); }
+[data-testid="sheet-header"] { background: var(--paper); }
+[data-testid="ticket-photo-shade"] { background: linear-gradient(105deg,#000000b8,#0000003d 70%,#00000066); }
+[data-testid="trip-hero-shade"] { background: linear-gradient(180deg,#0000001a 30%,#0000001f 45%,#000000a6); }
+[data-testid="journal-sheet"] { box-shadow: none; }
+[data-testid="trip-tabs"] { --tabs-pill-bg: transparent; }
+[data-testid="itinerary-day-tabs"] [role="tab"] { transition: background-color 180ms ease-out, color 180ms ease-out; }
+:is([data-testid="place-card"], [data-testid="booking-ticket"], [data-testid="note-list"], [data-testid="preparation-progress"]) {
+  border-radius: var(--radius-card) !important;
+  background-color: var(--paper) !important;
+}
+:is([data-testid="places-scroll"], [data-testid="bookings-scroll"], [data-testid="packing-scroll"], [data-testid="notes-scroll"], [data-testid="members-scroll"], [data-testid="form-sheet"], [data-testid="picker-sheet"]) :is(input,textarea) {
+  border-radius: var(--radius-control) !important;
+  border: 1px solid var(--ash);
+  color: var(--ink);
+}
+:is([data-testid="trip-menu"], [data-testid="discard-dialog"], [data-testid="delete-trip-dialog"]) { box-shadow: var(--shadow-float); }
+.file-drop { border-color: var(--ash); }
+.file-drop-button { color: var(--ink); }
+.file-drop-button:not(:disabled):hover { background: var(--soft); }
+.file-drop.is-dragging { border-color: var(--ocean); background: var(--sky); outline-color: var(--ocean); }
+.planner-root { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.planner-card-frame { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.planner-day { display: contents; }
+.planner-handle {
+  width: 44px; min-height: 48px; flex-shrink: 0; border: 0; border-radius: 10px;
+  color: var(--smoke); background: transparent; font: 28px/1 system-ui;
+  touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none;
+}
+.planner-handle[aria-pressed="true"] { color: var(--ocean); background: var(--sky); }
+.planner-handle:disabled { cursor: default; opacity: .35; }
+.planner-handle:active { cursor: grabbing; transform: none !important; }
+.planner-slot {
+  display: flex; width: calc(100% - 58px); margin-left: 58px; height: 8px;
+  align-items: center; justify-content: center; padding: 0; border: 0;
+  border-radius: 12px; background: transparent; color: var(--ocean);
+  font: 500 12px/18px system-ui; cursor: pointer; overflow: hidden;
+  transition: height 200ms cubic-bezier(.2,.9,.2,1), background-color 160ms;
+}
+.planner-slot span { opacity: 0; transition: opacity 120ms; }
+[data-plan-selected] .planner-slot { height: 44px; background: var(--sky); margin-top: 4px; margin-bottom: 4px; }
+[data-plan-selected] .planner-slot span { opacity: 1; }
+[data-plan-dragging] .planner-slot { height: 8px; margin-top: 0; margin-bottom: 0; background: transparent; }
+[data-plan-dragging] .planner-slot span { opacity: 0; }
+.planner-slot.is-over, [data-plan-dragging] .planner-slot.is-over { height: 64px; background: var(--sky); outline: 1px dashed var(--ocean); outline-offset: -2px; }
+.planner-slot.is-over span { opacity: 1; }
+.planner-slot:disabled { background: transparent; cursor: default; height: 8px; margin-block: 0; }
+.planner-slot:disabled span { opacity: 0; }
+.planner-slot:active { transform: none !important; }
+.planner-slot:focus-visible { outline: 2px solid var(--ocean); outline-offset: -2px; }
+.planner-ghost {
+  position: fixed !important; inset: 0 auto auto 0; z-index: 10000;
+  display: flex; flex-direction: column; pointer-events: none !important;
+  box-shadow: var(--shadow-float); border-radius: var(--radius-card);
+  transition: none !important; animation: none !important; opacity: .97;
+  will-change: transform; contain: layout style; background: var(--paper);
+}
+.planner-ghost * { pointer-events: none !important; }
+.planner-ghost .planner-handle { color: var(--ocean); }
+[data-plan-dragging] { user-select: none; -webkit-user-select: none; }
+[data-plan-dragging] [data-plan-source] { cursor: grabbing; }
+[data-testid="planner-candidates"] { overscroll-behavior: contain; }
+[data-testid="itinerary-scroll"] { overscroll-behavior: contain; }
+@media (min-width: 1024px) {
+  .planner-root [data-testid="itinerary-day-bar"] { display: flex !important; }
+  .planner-root [data-testid="itinerary-scroll"] { margin-right: 0; border-radius: 0; background: var(--canvas); }
+  .planner-root [data-testid="itinerary-scroll"] > div > div:last-child > div { padding-left: 24px !important; padding-right: 24px !important; max-width: 960px !important; }
+  [data-testid="form-modal-viewport"] [data-testid="form-sheet"], [data-testid="detail-modal-viewport"] [data-testid="form-sheet"] { box-shadow: var(--shadow-float); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .planner-slot, .planner-slot span { transition: none; }
+  .planner-ghost { will-change: auto; }
+}
+[data-testid="preparation-progress"] { border: 1px solid var(--ash); padding: 20px !important; }
+[data-testid="preparation-progress"] > div:first-child > div { color: var(--ink) !important; font-weight: 600 !important; }
+[data-testid="preparation-progress"] > div:nth-child(2) { background: var(--mist) !important; }
+[data-testid="preparation-groups"] > div > div:last-child { border-radius: 16px !important; border: 1px solid var(--ash); background: var(--paper); }
+[data-testid="preparation-groups"] [role="checkbox"] { min-width: 44px; min-height: 44px; border-radius: 12px !important; flex-shrink: 0; }
+[data-testid="preparation-groups"] [role="button"] { min-height: 44px; }
+[data-testid="preparation-groups"] [role="checkbox"][aria-checked="false"] { background: var(--paper) !important; border-color: var(--ash) !important; }
+[data-testid="preparation-groups"] [role="checkbox"][aria-checked="true"] { background: var(--sky) !important; border-color: var(--ocean) !important; }
+[data-testid="preparation-tabs"] { border-radius: 12px !important; background: var(--mist) !important; }
+[data-testid="notes-scroll"] > div > div:has([role="button"][aria-label$="を開く"]) { border-radius: 16px !important; border: 1px solid var(--ash); background: var(--paper); }
+[data-testid="notes-scroll"] > div > div:has([role="button"][aria-label$="を開く"]) [role="button"] { padding-block: 16px !important; }
+[data-testid="note-editor"] { background: var(--paper) !important; }
+[data-testid="note-editor"] [data-testid="note-body"] { color: var(--ink) !important; background: var(--paper) !important; }
+.planner-card-frame[data-plan-lifted] { opacity: .3; }
+@media (prefers-reduced-transparency: reduce) {
+  [data-testid="trip-header"], [data-testid="home-header"] { background: var(--paper) !important; backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+.motion-viewport::before { background: var(--overlay) !important; }
+[data-testid="ticket-stub"] { background-color: var(--mist) !important; }
+@media (min-width: 1024px) {
+  [data-testid="sheet-header"] > [role="button"]:last-child { min-height: 44px !important; border-radius: var(--radius-control); }
+}
+
+/* The trip tabs keep their intrinsic label width, then scroll rather than
+   truncating Japanese labels. Only the moving underline indicates selection. */
+[data-testid="trip-tabs"] [role="tab"] {
+  flex-basis: auto !important; flex-shrink: 0 !important;
+  min-inline-size: max-content; border-bottom-color: transparent !important;
+}
+[data-testid="trip-tabs"] [role="tab"] > div { white-space: nowrap; overflow: visible; }
+[data-testid="trip-tabs"] .t-tabs-pill {
+  box-sizing: border-box; background: transparent !important;
+  border-radius: 0 !important; border-bottom: 2px solid var(--ocean);
+  transition: transform 260ms cubic-bezier(.2,.9,.2,1), width 260ms cubic-bezier(.2,.9,.2,1);
+}
+[data-testid="trip-workspace"] .motion-page-content {
+  animation: planner-tab-enter 240ms cubic-bezier(.2,.9,.2,1) backwards;
+}
+@keyframes planner-tab-enter {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: none; }
+}
+[data-testid="planner-layout"] { min-width: 0; }
+[data-testid="planner-panel"] { width: 100%; min-width: 0; }
+[data-testid="planner-candidates"] { touch-action: pan-x; overscroll-behavior-x: contain; }
+.planner-card-frame { position: relative; }
+.planner-card-frame[data-plan-source] {
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.planner-card-frame[data-plan-gesture="lift"] { touch-action: pan-x; }
+[data-plan-dragging] .planner-card-frame[data-plan-source] { cursor: grabbing; }
+.planner-keyboard-handle:not(:focus-visible) {
+  position: absolute; width: 1px; height: 1px; min-height: 1px;
+  padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.planner-keyboard-handle:focus-visible {
+  position: absolute; right: 4px; top: 4px; z-index: 2;
+  background: var(--paper); outline: 2px solid var(--ocean); outline-offset: -2px;
+}
+/* In edit mode, an existing itinerary card exposes its source through the
+   keyboard handle. The card itself therefore owns the touch gesture so a
+   stationary long press can lift it before any native scrolling starts. */
+[data-plan-enabled] .planner-card-frame:has(.planner-keyboard-handle:not(:disabled)) {
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+[data-plan-dragging] .planner-card-frame:has(.planner-keyboard-handle:not(:disabled)) { cursor: grabbing; }
+
+/* On mobile the editing affordance belongs to the journal summary, next to
+   the day count, rather than consuming a second toolbar above the day tabs. */
+[data-testid="planner-toggle"] > * { font-size: 0 !important; line-height: 0 !important; }
+[data-testid="planner-toggle"] > *::after {
+  content: '編集'; color: inherit; font-size: 14px; line-height: 20px; font-weight: 600;
+}
+[data-plan-enabled] [data-testid="planner-toggle"] > *::after { content: '完了'; }
+@media (max-width: 1023px) {
+  [data-testid="itinerary-intro"] > div:last-child > div > div { padding-right: 94px !important; }
+  [data-testid="itinerary-day-bar"] > div:first-child {
+    position: relative !important; height: 0 !important; min-height: 0 !important;
+    padding: 0 !important; overflow: visible !important;
+  }
+  [data-testid="itinerary-day-bar"] > div:first-child > :first-child { display: none !important; }
+  [data-testid="planner-toggle"] {
+    position: absolute !important; right: 20px; top: -50px; z-index: 8;
+    min-height: 36px !important; padding: 7px 12px !important;
+  }
+}
+
+/* Itinerary add/edit is a workspace, not a floating sheet. Keep the detail
+   viewer sheet-like, but let the actual editor occupy the full viewport. */
+[data-testid="form-modal-viewport"]:has([data-testid="itinerary-editor-fields"]) {
+  padding: 0 !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  background: var(--canvas) !important;
+}
+[data-testid="form-modal-viewport"]:has([data-testid="itinerary-editor-fields"]) > [data-testid="form-sheet"] {
+  width: 100% !important;
+  max-width: none !important;
+  max-height: 100% !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Edit mode makes the movement model legible at a glance: movable plans use
+   the blue action language, while fixed reservations stay deliberately muted. */
+[data-plan-enabled] .planner-card-frame [data-testid="itinerary-card"] { position: relative; }
+[data-plan-enabled] .planner-card-frame:has(.planner-keyboard-handle:not(:disabled)) [data-testid="itinerary-card"] {
+  border-color: var(--ocean) !important;
+  box-shadow: inset 0 0 0 1px var(--ocean);
+}
+[data-plan-enabled] .planner-card-frame:has(.planner-keyboard-handle:not(:disabled)) [data-testid="itinerary-card"]::after,
+[data-plan-enabled] .planner-card-frame:not(:has(.planner-keyboard-handle:not(:disabled))) [data-testid="itinerary-card"]::after {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font: 600 10px/14px system-ui;
+  pointer-events: none;
+}
+[data-plan-enabled] .planner-card-frame:has(.planner-keyboard-handle:not(:disabled)) [data-testid="itinerary-card"]::after {
+  content: '移動可';
+  color: var(--ocean);
+  background: var(--sky);
+}
+[data-plan-enabled] .planner-card-frame:not(:has(.planner-keyboard-handle:not(:disabled))) [data-testid="itinerary-card"] {
+  border-color: var(--ash) !important;
+  background: var(--soft) !important;
+}
+[data-plan-enabled] .planner-card-frame:not(:has(.planner-keyboard-handle:not(:disabled))) [data-testid="itinerary-card"]::after {
+  content: '固定';
+  color: var(--smoke);
+  background: var(--mist);
+}
+[data-plan-enabled] .planner-card-frame [data-testid="itinerary-card"] [role="button"] {
+  padding-right: 76px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="trip-workspace"] .motion-page-content { animation: none; }
+  [data-testid="trip-tabs"] .t-tabs-pill { transition: none; }
+}

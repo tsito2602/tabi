@@ -11,7 +11,15 @@ const require = createRequire(import.meta.url);
 function load(file, mocks, extra = '', define = {}) {
   const { code } = transformSync(readFileSync(file, 'utf8') + extra, { loader: 'tsx', format: 'cjs', jsx: 'automatic', define });
   const module = { exports: {} };
-  new Function('require', 'module', 'exports', code)((name) => name === '@/utils/detail-origin' ? { captureDetailOrigin: () => undefined } : name in mocks ? mocks[name] : require(name), module, module.exports);
+  new Function('require', 'module', 'exports', code)((name) => {
+    if (name === '@/utils/detail-origin') return { captureDetailOrigin: () => undefined };
+    if (name in mocks) return mocks[name];
+    if (name === './itinerary-placement') return load('src/data/itinerary-placement.ts', { '../utils/dates': load('src/utils/dates.ts', {}) });
+    if (name === '@/components/ui/surface-card') return load('src/components/ui/surface-card.tsx', {
+      'react-native': native, '@/theme/theme-provider': theme, '@/constants/design': { radii: { card: 16 } },
+    });
+    return require(name);
+  }, module, module.exports);
   return module.exports;
 }
 const noop = () => undefined;
