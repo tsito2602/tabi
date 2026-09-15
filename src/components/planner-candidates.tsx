@@ -17,6 +17,7 @@ export function PlannerCandidates({ source, disabled = false }: { source: PlanSo
   const p = usePalette(), s = useThemedStyles(createStyles);
   const { height } = useWindowDimensions(), insets = useSafeAreaInsets();
   const compact = height < 520;
+  const [expanded, setExpanded] = useState(false);
   const [search, setSearch] = useState(''), [picker, setPicker] = useState(false);
   const [viewing, setViewing] = useState<string | null>(null), [origin, setOrigin] = useState<DetailOrigin>();
   const filtered = places.filter(place => `${place.title} ${place.note}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
@@ -40,11 +41,17 @@ export function PlannerCandidates({ source, disabled = false }: { source: PlanSo
     {!(searching ? filtered : places).length ? <Text style={s.empty}>{places.length ? '一致する場所がありません' : '行きたい場所はまだありません'}</Text> : null}
   </>;
   return <View testID="planner-panel" style={[s.panel, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-    <View style={s.header}><Text accessibilityRole="header" style={s.heading}>行きたい場所</Text>
-      <ActionButton label="検索" variant="quiet" onPress={event => { setOrigin(captureDetailOrigin(event)); setPicker(true); }} />
+    <View style={s.header}>
+      <Pressable testID="planner-panel-toggle" accessibilityRole="button" accessibilityState={{ expanded }}
+        accessibilityLabel={expanded ? '行きたい場所を閉じる' : '行きたい場所を開く'}
+        onPress={() => setExpanded(value => !value)} style={({ pressed }) => [s.toggle, pressed && s.pressed]}>
+        <Text style={s.heading}>行きたい場所</Text>
+        <Text style={s.toggleLabel}>{expanded ? '閉じる' : '開く'}</Text>
+      </Pressable>
+      {expanded ? <ActionButton label="検索" variant="quiet" onPress={event => { setOrigin(captureDetailOrigin(event)); setPicker(true); }} /> : null}
     </View>
-    <ScrollView testID="planner-candidates" horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false}
-      style={s.scroller} contentContainerStyle={s.list}>{cards()}</ScrollView>
+    {expanded ? <ScrollView testID="planner-candidates" horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false}
+      style={s.scroller} contentContainerStyle={s.list}>{cards()}</ScrollView> : null}
     <MotionPresence>{picker ? <FormSheet detailOrigin={origin} visible title="行きたい場所を検索" onClose={() => setPicker(false)}>
       <TextInput accessibilityLabel="配置する場所を検索" autoFocus value={search} onChangeText={setSearch} placeholder="候補を検索" placeholderTextColor={p.placeholder} style={s.search} />
       <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} contentContainerStyle={s.list}>{cards(true)}</ScrollView>
@@ -54,8 +61,11 @@ export function PlannerCandidates({ source, disabled = false }: { source: PlanSo
 }
 const createStyles = (p: Palette) => StyleSheet.create({
   panel: { flexShrink: 0, minHeight: 0, backgroundColor: p.canvas, borderTopWidth: 1, borderColor: p.ash, paddingTop: 4, gap: 4 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
+  header: { minHeight: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 4 },
+  toggle: { flex: 1, minWidth: 0, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 4 },
   heading: { color: p.ink, fontSize: 15, lineHeight: 22, fontWeight: '600', flexShrink: 1 },
+  toggleLabel: { color: p.ocean, fontSize: 13, lineHeight: 20, fontWeight: '700' },
+  pressed: { opacity: 0.64 },
   scroller: { flexGrow: 0 }, list: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingVertical: 4, alignItems: 'stretch' },
   cell: { width: 152, flexShrink: 0 },
   card: { minHeight: 88, paddingHorizontal: 14, paddingVertical: 12, justifyContent: 'center', backgroundColor: p.paper, borderRadius: 16, borderWidth: 1, borderColor: p.ash },

@@ -398,11 +398,18 @@ function ItineraryContent({ editor = false, initialDay, origin, onClose }: { edi
     });
   };
 
+  const closePlanner = () => { if (!composer.linkPending) onClose?.(); };
+
   const content = (
     <SafeAreaView style={styles.safeArea} edges={[]}>
       {editor ? <View testID="planner-editor-header" style={styles.editorHeader}>
-        <Text accessibilityRole="header" style={styles.composerTitle}>しおりを編集</Text>
-        <ActionButton label="完了" disabled={composer.linkPending} onPress={() => { if (!composer.linkPending) onClose?.(); }} />
+        <Pressable accessibilityRole="button" accessibilityLabel="閉じる" accessibilityState={{ disabled: composer.linkPending }} disabled={composer.linkPending} onPress={closePlanner} style={styles.editorHeaderButton}>
+          <Text style={[styles.editorClose, composer.linkPending && styles.editorHeaderDisabled]}>閉じる</Text>
+        </Pressable>
+        <Text accessibilityRole="header" numberOfLines={1} style={styles.editorTitle}>しおりを編集</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="保存" accessibilityState={{ disabled: composer.linkPending }} disabled={composer.linkPending} onPress={closePlanner} style={styles.editorHeaderButton}>
+          <Text style={[styles.editorSave, composer.linkPending && styles.editorHeaderDisabled]}>保存</Text>
+        </Pressable>
       </View> : null}
       <PlannerDrag enabled={composer.enabled} source={composer.source} onSelect={composer.select} onDrop={composer.drop} onDay={scrollToDay}>
       <View testID="planner-layout" style={{ flex: 1, minHeight: 0, marginTop: editor ? 0 : headerHeight, flexDirection: editor || !desktop ? 'column' : 'row' }}>
@@ -567,9 +574,8 @@ function ItineraryContent({ editor = false, initialDay, origin, onClose }: { edi
     </SafeAreaView>
   );
   if (!editor) return content;
-  const close = () => { if (!composer.linkPending) onClose?.(); };
   return <MotionModal detail detailOrigin={origin} visible transparent={Platform.OS === 'web'} presentationStyle="fullScreen"
-    animationType={reduced ? 'none' : 'slide'} onRequestClose={close}>
+    animationType={reduced ? 'none' : 'slide'} onRequestClose={closePlanner}>
     <View nativeID="planner-editor-viewport" testID="detail-modal-viewport" style={[styles.editorViewport, editorViewport]}>
       <SafeAreaView testID="form-sheet" edges={['top', 'bottom']} style={styles.editorSurface}>{content}</SafeAreaView>
     </View>
@@ -621,7 +627,12 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: 'transparent' },
   editorViewport: { flex: 1, minHeight: 0, backgroundColor: palette.canvas },
   editorSurface: { flex: 1, minHeight: 0, width: '100%', backgroundColor: palette.canvas, overflow: 'hidden' },
-  editorHeader: { flexDirection: 'row', flexShrink: 0, alignItems: 'center', justifyContent: 'space-between', minHeight: 64, paddingHorizontal: 20, gap: 12, backgroundColor: palette.paper, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.ash },
+  editorHeader: { flexDirection: 'row', flexShrink: 0, alignItems: 'center', minHeight: 64, paddingHorizontal: 12, backgroundColor: palette.canvas, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.ash },
+  editorHeaderButton: { minWidth: 64, minHeight: 48, justifyContent: 'center', alignItems: 'center' },
+  editorClose: { color: palette.slate, fontSize: 15 },
+  editorTitle: { flex: 1, textAlign: 'center', color: palette.ink, fontSize: 17, lineHeight: 24, fontWeight: '700' },
+  editorSave: { color: palette.ocean, fontSize: 16, fontWeight: '700' },
+  editorHeaderDisabled: { opacity: 0.35 },
   composerToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 8, gap: 12 },
   composerTitle: { color: palette.ink, fontSize: 17, lineHeight: 24, fontWeight: '600' },
   composerMessage: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, gap: 8, paddingBottom: 6 },
