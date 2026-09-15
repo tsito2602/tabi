@@ -1,12 +1,16 @@
-name: CI
+name: Manual CI
 
+# Normal Web/PWA validation runs once in Workers Builds before deployment.
+# This optional fallback consumes Actions minutes: run only on explicit request.
 on:
-  pull_request:
-  push:
-    branches: [staging, main]
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: manual-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
@@ -18,5 +22,6 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: node --test scripts/test-workers-build.mjs
+      - run: npm ci --include=dev --prefer-offline --no-audit --no-fund
       - run: npm run check

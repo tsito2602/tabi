@@ -5,8 +5,9 @@ description: tabiのPRをstagingへ反映し、Cloudflareのデプロイ結果�
 
 # staging反映
 
-- 検証範囲・結果の再利用・ログ取得・完了報告・本番反映の条件は`AGENTS.md`に従う。
-- main向けPRを開いたまま、変更を最新の`staging`へ統合する。他のPRの内容を保持し、依頼範囲の競合・検証失敗を修正する。
-- pushで`Deploy staging`が起動するため、手動デプロイを重ねない。構成変更・失敗調査時だけ、staging側の`.github/workflows/deploy-staging.yml`と`docs/DEPLOYMENT.md`の該当箇所を読む。
-- 対象commitの`CI`・`Deploy staging`の成功と[staging](https://tabi-staging.tsito-apps.workers.dev)の応答を確認する。PR headと統合後commitの結果を混同しない。
-- 権限・認証・外部障害で進めない場合は迂回せず、完了済みと未確認を区別して報告する。
+- 検証範囲・成功結果の再利用・完了報告・本番反映の条件は`AGENTS.md`に従う。
+- main向けPRを開いたまま変更を最新`staging`へ統合する。他のPRを保持し、依頼範囲の競合と失敗を修正する。細かな調整は作業ブランチでまとめ、stagingへのpushを反復しない。
+- 標準経路はWorkers Builds。`tabi-staging`が`staging`だけに接続され、非本番ブランチビルドOFF・cache ON・watch pathsが設定済みかを区別する。設定ファイルの存在を接続済みの根拠にしない。
+- 対象pushのBuilds内で`npm run check`（ビルド内包）と配信が各1回動く。重複のActions・手動配信・Deploy Hook・一時検証workflowを追加しない。初回移行・構成変更・失敗調査時だけ`docs/DEPLOYMENT.md`の該当箇所を読む。
+- PRの差分、統合後SHA、対象WorkerのBuild成功・配信・HTTP応答を確認する。PR headと統合後の結果、ブランチ更新と実配信を混同しない。
+- Cloudflare接続や権限・認証・外部通信で止まった場合は迂回せず、コード準備・ブランチ統合・検証・配信のどこまで完了したかを報告する。本番は明示指示後にのみ反映する。
