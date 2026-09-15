@@ -137,7 +137,9 @@ export function attachPlannerPointer(root: HTMLElement, callbacks: Callbacks) {
   const contextMenu = (event: Event) => { if (active?.touch) event.preventDefault(); };
   const key = (event: KeyboardEvent) => { if (event.key === 'Escape' && active) { event.preventDefault(); cancel(); } };
   const visibility = () => { if (doc.hidden) cancel(); };
-  root.addEventListener('pointerdown', down);
+  // Capture pointerdown before React Native Web's nested Pressable responder can
+  // stop bubbling. We still defer pointer capture until an actual drag begins.
+  root.addEventListener('pointerdown', down, true);
   root.addEventListener('click', click, true);
   root.addEventListener('contextmenu', contextMenu);
   win.addEventListener('pointermove', move, { passive: false });
@@ -148,7 +150,7 @@ export function attachPlannerPointer(root: HTMLElement, callbacks: Callbacks) {
   win.addEventListener('blur', cancel);
   doc.addEventListener('visibilitychange', visibility);
   return () => {
-    clear(); root.removeEventListener('pointerdown', down); root.removeEventListener('click', click, true);
+    clear(); root.removeEventListener('pointerdown', down, true); root.removeEventListener('click', click, true);
     root.removeEventListener('contextmenu', contextMenu);
     win.removeEventListener('pointermove', move); win.removeEventListener('pointerup', up); win.removeEventListener('pointercancel', interrupted);
     root.removeEventListener('lostpointercapture', interrupted); win.removeEventListener('keydown', key); win.removeEventListener('blur', cancel);

@@ -9,6 +9,7 @@ const code = ts.transpileModule(readFileSync(sourcePath, 'utf8'), { compilerOpti
 const module = { exports: {} };
 new Function('require', 'module', 'exports', code)(name => { throw new Error(`unexpected import ${name}`); }, module, module.exports);
 const { plannerGestureIntent, edgeScrollSpeed, parsePlanSource, attachPlannerPointer } = module.exports;
+const css = readFileSync(path.resolve('src/redesign.css'), 'utf8');
 
 const classList = () => ({ add() {}, remove() {} });
 function element(dataset = {}) {
@@ -25,7 +26,7 @@ function element(dataset = {}) {
     },
     contains(target) { return target === this || target?.parent === this; },
     hasAttribute(name) { return name === 'disabled' ? Boolean(this.disabled) : false; },
-    setAttribute() {}, removeAttribute() {}, querySelectorAll() { return []; },
+    setAttribute() {}, removeAttribute() {}, remove() {}, querySelectorAll() { return []; },
     getBoundingClientRect() { return this.rect ?? { left: 0, top: 0, right: 152, bottom: 72, width: 152, height: 72 }; },
     cloneNode() { const clone = element({ ...this.dataset }); clone.querySelectorAll = () => []; return clone; },
     setPointerCapture() {}, releasePointerCapture() {}, hasPointerCapture() { return false; },
@@ -33,7 +34,7 @@ function element(dataset = {}) {
   };
 }
 function fixture() {
-  const listeners = new Map(), windowListeners = new Map(); let point = null, raf = 0;
+  const listeners = new Map(), windowListeners = new Map(), registrations = []; let point = null, raf = 0;
   const body = { appendChild() {} };
   const doc = {
     hidden: false, body,
@@ -49,7 +50,7 @@ function fixture() {
   };
   doc.defaultView = win;
   const root = element(); root.ownerDocument = doc;
-  root.addEventListener = (name, fn) => listeners.set(name, fn); root.removeEventListener = () => {};
+  root.addEventListener = (name, fn, options) => { listeners.set(name, fn); registrations.push([name, options]); }; root.removeEventListener = () => {};
   root.querySelectorAll = () => [];
   const calls = [];
   const cleanup = attachPlannerPointer(root, {
@@ -57,7 +58,7 @@ function fixture() {
     day: day => calls.push(['day', day]), cancel: () => calls.push(['cancel']),
   });
   const emit = (name, event) => (listeners.get(name) ?? windowListeners.get(name))?.(event);
-  return { root, doc, win, calls, cleanup, emit, setPoint(value) { point = value; } };
+  return { root, doc, win, calls, cleanup, emit, registrations, setPoint(value) { point = value; } };
 }
 function pointer(target, x, y, extras = {}) {
   return { target, clientX: x, clientY: y, pointerId: 1, isPrimary: true, button: 0, pointerType: 'touch', preventDefault() {}, ...extras };
@@ -68,6 +69,14 @@ test('gesture intent keeps candidate horizontal swipe as scroll and vertical mov
   assert.equal(plannerGestureIntent(1, 8, true, 'lift'), 'drag');
   assert.equal(plannerGestureIntent(8, 1, true, 'free'), 'drag');
   assert.equal(plannerGestureIntent(4, 4, true, 'lift'), 'pending');
+});
+test('candidate touch-action leaves horizontal scrolling to the dock and vertical movement to drag', () => {
+  assert.match(css, /\.planner-card-frame\[data-plan-gesture="lift"\]\s*\{[^}]*touch-action:\s*pan-x;/s);
+});
+test('planner observes pointerdown in capture phase before nested Pressable responders', () => {
+  const f = fixture();
+  assert(f.registrations.some(([name, options]) => name === 'pointerdown' && options === true));
+  f.cleanup();
 });
 test('mouse/pen are never held for long-press', () => {
   assert.equal(plannerGestureIntent(8, 0, false, 'lift'), 'drag');
