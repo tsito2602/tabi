@@ -90,7 +90,7 @@ const createStyles = (p: Palette) => StyleSheet.create({
   menuButton: { position: 'absolute', right: 0, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, menuMark: { color: p.ink, fontSize: 26, fontWeight: '600' },
   pageAction: { position: 'absolute', right: 56 }, tabScroll: { marginHorizontal: -20, flexGrow: 0 },
   tabs: { minHeight: 48, flexDirection: 'row', paddingHorizontal: 20, gap: 4, alignItems: 'center' },
-  tab: { flex: 1, flexShrink: 0, minWidth: 60, paddingHorizontal: 12, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tab: { flexGrow: 1, flexBasis: 'auto', flexShrink: 0, minWidth: 76, paddingHorizontal: 12, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabSelected: { borderBottomColor: p.ocean }, tabText: { color: p.smoke, fontSize: 14, lineHeight: 21, fontWeight: '500' }, tabTextSelected: { color: p.ocean, fontWeight: '700' },
   progress: { color: p.ocean, fontSize: 12, paddingVertical: 8, textAlign: 'right' },
   menuOverlay: { flex: 1, backgroundColor: p.overlay }, menuPosition: { position: 'absolute', width: '100%', maxWidth: 800, alignSelf: 'center', paddingHorizontal: 20, alignItems: 'flex-end' },

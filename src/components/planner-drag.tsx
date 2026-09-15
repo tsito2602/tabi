@@ -1,7 +1,7 @@
 import { createContext, useContext, type PropsWithChildren } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { usePalette } from '@/theme/theme-provider';
-import type { PlannerDragProps, PlannerHandleProps, PlannerSlotProps } from './planner-drag.types';
+import type { PlannerCardProps, PlannerDragProps, PlannerHandleProps, PlannerSlotProps } from './planner-drag.types';
 
 // The native fallback keeps the same selection/placement commands without
 // importing DOM APIs. Mobile Web/PWA uses the pointer implementation.
@@ -21,6 +21,6 @@ export function PlannerSlot({ slot, label, disabled }: PlannerSlotProps) {
   return <Pressable disabled={disabled} accessibilityRole="button" accessibilityLabel={label}
     onPress={() => { if (c.source) c.onDrop(c.source, slot); }} style={{ minHeight: 44, justifyContent: 'center', alignItems: 'center', opacity: disabled ? 0.3 : 1 }}><Text style={{ color: p.ocean }}>ここに配置</Text></Pressable>;
 }
-export function PlannerCard({ children }: PropsWithChildren) { return <View style={{ flex: 1, minWidth: 0 }}>{children}</View>; }
+export function PlannerCard({ children }: PlannerCardProps) { return <View style={{ flex: 1, minWidth: 0 }}>{children}</View>; }
 export function PlannerEntry({ children }: PropsWithChildren<{ entryKey: string }>) { return <View>{children}</View>; }
 export function PlannerDay({ children }: PropsWithChildren<{ day: string }>) { return <View>{children}</View>; }

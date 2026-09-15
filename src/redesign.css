@@ -28,8 +28,6 @@ input, textarea, select { caret-color: var(--ocean); }
 [data-testid="journal-sheet"] { box-shadow: none; }
 [data-testid="trip-tabs"] { --tabs-pill-bg: transparent; }
 [data-testid="itinerary-day-tabs"] [role="tab"] { transition: background-color 180ms ease-out, color 180ms ease-out; }
-/* These stable component hooks define the shared material, not a global
-   button/DOM rewrite. Fullscreen dimensions remain owned by detail-motion. */
 :is([data-testid="place-card"], [data-testid="booking-ticket"], [data-testid="note-list"], [data-testid="preparation-progress"]) {
   border-radius: var(--radius-card) !important;
   background-color: var(--paper) !important;
@@ -44,8 +42,6 @@ input, textarea, select { caret-color: var(--ocean); }
 .file-drop-button { color: var(--ink); }
 .file-drop-button:not(:disabled):hover { background: var(--soft); }
 .file-drop.is-dragging { border-color: var(--ocean); background: var(--sky); outline-color: var(--ocean); }
-
-/* The same live itinerary stays mounted when the candidate dock is opened. */
 .planner-root { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
 .planner-card-frame { display: flex; flex: 1; flex-direction: column; min-width: 0; }
 .planner-day { display: contents; }
@@ -67,8 +63,6 @@ input, textarea, select { caret-color: var(--ocean); }
 .planner-slot span { opacity: 0; transition: opacity 120ms; }
 [data-plan-selected] .planner-slot { height: 44px; background: var(--sky); margin-top: 4px; margin-bottom: 4px; }
 [data-plan-selected] .planner-slot span { opacity: 1; }
-/* Dragging previews only the pointed-to gap. Tap and keyboard selection show
-   every available target, with a real 44px hit area. */
 [data-plan-dragging] .planner-slot { height: 8px; margin-top: 0; margin-bottom: 0; background: transparent; }
 [data-plan-dragging] .planner-slot span { opacity: 0; }
 .planner-slot.is-over, [data-plan-dragging] .planner-slot.is-over { height: 64px; background: var(--sky); outline: 1px dashed var(--ocean); outline-offset: -2px; }
@@ -100,7 +94,6 @@ input, textarea, select { caret-color: var(--ocean); }
   .planner-slot, .planner-slot span { transition: none; }
   .planner-ghost { will-change: auto; }
 }
-/* Preparation remains a compact checklist, not a grid of large tiles. */
 [data-testid="preparation-progress"] { border: 1px solid var(--ash); padding: 20px !important; }
 [data-testid="preparation-progress"] > div:first-child > div { color: var(--ink) !important; font-weight: 600 !important; }
 [data-testid="preparation-progress"] > div:nth-child(2) { background: var(--mist) !important; }
@@ -120,7 +113,48 @@ input, textarea, select { caret-color: var(--ocean); }
 }
 .motion-viewport::before { background: var(--overlay) !important; }
 [data-testid="ticket-stub"] { background-color: var(--mist) !important; }
-
 @media (min-width: 1024px) {
   [data-testid="sheet-header"] > [role="button"]:last-child { min-height: 44px !important; border-radius: var(--radius-control); }
+}
+
+/* The trip tabs keep their intrinsic label width, then scroll rather than
+   truncating Japanese labels. Only the moving underline indicates selection. */
+[data-testid="trip-tabs"] [role="tab"] {
+  flex-basis: auto !important; flex-shrink: 0 !important;
+  min-inline-size: max-content; border-bottom-color: transparent !important;
+}
+[data-testid="trip-tabs"] [role="tab"] > div { white-space: nowrap; overflow: visible; }
+[data-testid="trip-tabs"] .t-tabs-pill {
+  box-sizing: border-box; background: transparent !important;
+  border-radius: 0 !important; border-bottom: 2px solid var(--ocean);
+  transition: transform 260ms cubic-bezier(.2,.9,.2,1), width 260ms cubic-bezier(.2,.9,.2,1);
+}
+[data-testid="trip-workspace"] .motion-page-content {
+  animation: planner-tab-enter 240ms cubic-bezier(.2,.9,.2,1) backwards;
+}
+@keyframes planner-tab-enter {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: none; }
+}
+[data-testid="planner-layout"] { min-width: 0; }
+[data-testid="planner-panel"] { width: 100%; min-width: 0; }
+[data-testid="planner-candidates"] { touch-action: pan-x; overscroll-behavior-x: contain; }
+.planner-card-frame { position: relative; }
+.planner-card-frame[data-plan-source] {
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.planner-card-frame[data-plan-gesture="lift"] { touch-action: pan-x; }
+[data-plan-dragging] .planner-card-frame[data-plan-source] { cursor: grabbing; }
+.planner-keyboard-handle:not(:focus-visible) {
+  position: absolute; width: 1px; height: 1px; min-height: 1px;
+  padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.planner-keyboard-handle:focus-visible {
+  position: absolute; right: 4px; top: 4px; z-index: 2;
+  background: var(--paper); outline: 2px solid var(--ocean); outline-offset: -2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="trip-workspace"] .motion-page-content { animation: none; }
+  [data-testid="trip-tabs"] .t-tabs-pill { transition: none; }
 }

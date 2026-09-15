@@ -9,3 +9,9 @@ export type PlannerDragProps = PropsWithChildren<{
 }>;
 export type PlannerHandleProps = { source: PlanSource; label: string; disabled?: boolean };
 export type PlannerSlotProps = { slot: PlacementSlot; label: string; disabled?: boolean };
+export type PlannerCardProps = PropsWithChildren<{
+  source?: PlanSource;
+  disabled?: boolean;
+  gesture?: 'lift' | 'free';
+  arrivalSequence?: number;
+}>;
