@@ -184,6 +184,9 @@ export default function ItineraryScreen() {
   const connectionByArrival = useMemo(() => new Map(flightConnections.map((connection) => [connection.arrivalBookingId, connection])), [flightConnections]);
 
   const timeline = itineraryTimeline(items, bookings, places);
+  // Continue a layover rail only when the next visible event is that flight.
+  // A manually selected later departure must not appear attached to an
+  // unrelated flight or plan that falls between the two endpoints.
   const connectedDepartures = new Set(flightConnections.filter((connection) => {
     const index = timeline.findIndex((entry) => entry.booking?.id === connection.departureBookingId && entry.bookingEndpoint === 'start');
     const previous = timeline[index - 1];
@@ -256,6 +259,8 @@ export default function ItineraryScreen() {
     resumeScrollTracking();
     programmaticScrollDay.current = date;
     setActiveDay(date);
+    // Arrive at the real slot before revealing the item. No long journey
+    // through unrelated days, no guessed offsets and no duplicated live card.
     scrollRef.current.scrollTo({ y, animated: entering ? false : !reduced });
     setArrivalRow(entering ? { id, playing: true } : null);
     scrollTrackingTimer.current = setTimeout(resumeScrollTracking, 1000);
@@ -267,58 +272,97 @@ export default function ItineraryScreen() {
   }, [scrollToRequestedDay]);
 
   useLayoutEffect(() => {
-    if (!itemId || !requestedDay || !tripId) return;
-    const requestKey = `${tripId}:${itemId}:${arrival ?? ''}`;
-    if (preparedRequest.current === requestKey) return;
-    preparedRequest.current = requestKey;
-    if (arrival && !hasItineraryArrival(tripId, itemId, arrival)) return;
-    requestedItem.current = itemId;
-    pendingScrollDay.current = requestedDay;
-    requestedArrival.current = { tripId, itemId, token: arrival };
-    setArrivalRow({ id: itemId, playing: false });
-    arrivalTimeout.current = setTimeout(() => {
-      requestedItem.current = null;
-      pendingScrollDay.current = null;
+    const key = JSON.stringify([tripId, itemId, arrival]);
+    if (preparedRequest.current === key && requestedDay) {
+      // Follow a moved item only while this request is still pending; a later
+      // shared edit must not pull the reader away from their current position.
+      if (requestedItem.current === itemId) pendingScrollDay.current = requestedDay;
+      scheduleRequestedScroll();
+      return;
+    }
+    if (!requestedDay) cancelItineraryArrival(requestedArrival.current?.token);
+    preparedRequest.current = itemId && requestedDay ? key : '';
+    pendingScrollDay.current = requestedDay ?? null;
+    requestedItem.current = requestedDay && itemId ? itemId : null;
+    const fresh = Boolean(itemId && requestedDay && hasItineraryArrival(tripId, itemId, arrival));
+    requestedArrival.current = fresh ? { tripId, itemId: itemId!, token: arrival } : null;
+    setArrivalRow(fresh ? { id: itemId!, playing: false } : null);
+    if (arrivalTimeout.current) clearTimeout(arrivalTimeout.current);
+    if (fresh) arrivalTimeout.current = setTimeout(() => {
+      cancelItineraryArrival(arrival);
       requestedArrival.current = null;
       setArrivalRow(null);
-    }, 1800);
+    }, 1200);
     scheduleRequestedScroll();
-  }, [arrival, itemId, requestedDay, scheduleRequestedScroll, tripId]);
+    return () => cancelAnimationFrame(requestedFrame.current);
+  }, [tripId, itemId, arrival, requestedDay, scheduleRequestedScroll]);
 
-  const trackVisibleDay = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (programmaticScrollDay.current) return;
-    const y = event.nativeEvent.contentOffset.y + dayBarHeight + 18 - sheetOffset.current - timelineOffset.current;
-    let current = itineraryDates[0];
-    for (const date of itineraryDates) if ((dayOffsets.current[date] ?? Number.POSITIVE_INFINITY) <= y) current = date; else break;
-    if (current && current !== activeDay) setActiveDay(current);
-  }, [activeDay, dayBarHeight, itineraryDates]);
-
-  const interruptArrival = useCallback(() => {
-    if (!arrivalRow) return;
-    requestedItem.current = null; pendingScrollDay.current = null; requestedArrival.current = null;
+  const interruptArrival = () => {
+    pendingScrollDay.current = null;
+    requestedItem.current = null;
+    requestedArrival.current = null;
     cancelAnimationFrame(requestedFrame.current);
+    cancelItineraryArrival(arrival);
     if (arrivalTimeout.current) clearTimeout(arrivalTimeout.current);
     setArrivalRow(null);
-  }, [arrivalRow]);
+    resumeScrollTracking();
+  };
 
-  const openAdd = (event?: GestureResponderEvent) => {
+  const trackVisibleDay = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    hero?.scrollY.setValue(Math.max(0, event.nativeEvent.contentOffset.y));
+    if (programmaticScrollDay.current) return;
+    const scrollPosition = event.nativeEvent.contentOffset.y + dayBarHeight + 24 - sheetOffset.current - timelineOffset.current;
+    let visibleDay = itineraryDates[0];
+    for (const date of itineraryDates) {
+      if ((dayOffsets.current[date] ?? Number.POSITIVE_INFINITY) <= scrollPosition) visibleDay = date;
+      else break;
+    }
+    if (visibleDay && visibleDay !== visibleActiveDay) setActiveDay(visibleDay);
+  };
+
+  const openAdd = (event: GestureResponderEvent) => {
     setDetailOrigin(captureDetailOrigin(event));
-    setAdding(true); setEditingId(null); setFormError('');
-    const nextDay = validDate(visibleActiveDay) ? visibleActiveDay : selectedTrip?.startsOn ?? '';
-    setDay(nextDay); setTime('10:00'); setTitle(''); setNote('');
-    const next = emptyItineraryDetails(); setPlanDetails(next); setInitialDraft(JSON.stringify([nextDay, '10:00', '', '', next]));
-  };
-  const openEdit = (item: ItineraryItem) => {
-    setAdding(false); setEditingId(item.id); setViewingItemId(null); setFormError('');
-    setDay(item.day); setTime(item.time); setTitle(item.title); setNote(item.note ?? '');
-    const next = itemDetails(item); setPlanDetails(next); setInitialDraft(JSON.stringify([item.day, item.time, item.title, item.note ?? '', next]));
-  };
-  const closeEditor = () => { setAdding(false); setEditingId(null); setFormError(''); };
-  const save = () => {
     if (!selectedTrip) return;
-    const savedTitle = (moving ? title.trim() || `${transportLabel(planDetails)}で移動` : editingPlace?.title || title.trim());
-    if (!moving && !savedTitle) { setFormError('予定名を入力してください'); return; }
-    const details: ItineraryDetails = { ...planDetails };
+    setViewingItemId(null);
+    setEditingId(null);
+    const startDay = visibleActiveDay || selectedTrip.startsOn;
+    const startTime = '10:00';
+    const details = emptyItineraryDetails();
+    setDay(startDay);
+    setTime(startTime);
+    setPlanDetails(details);
+    setTitle('');
+    setNote('');
+    setInitialDraft(JSON.stringify([startDay, startTime, '', '', details]));
+    setFormError('');
+    setAdding(true);
+  };
+
+  const openEdit = (item: ItineraryItem) => {
+    setEditingId(item.id);
+    setDay(item.day);
+    const editTime = item.time;
+    setTime(editTime);
+    setTitle(item.title);
+    setNote(item.note);
+    setPlanDetails(itemDetails(item));
+    setInitialDraft(JSON.stringify([item.day, editTime, item.title, item.note, itemDetails(item)]));
+    setFormError('');
+    setAdding(true);
+  };
+
+  const closeEditor = () => {
+    setAdding(false);
+    setEditingId(null);
+  };
+
+  const save = () => {
+    const savedTitle = title.trim() || (moving ? [planDetails.transport?.origin, planDetails.transport?.destination].filter(Boolean).join(' → ') || `${transportLabel(planDetails)}で移動` : '');
+    if (!savedTitle || !validDate(day) || !/^([01]\d|2[0-3]):[0-5]\d$|^$/.test(time)) {
+      setFormError('日付、予定名、正しい時刻を入力してください');
+      return;
+    }
+    const details: ItineraryDetails = { ...planDetails, ...(moving ? { location: '', transport: planDetails.transport ?? { mode: 'walk', origin: '', destination: '' } } : { transport: undefined }) };
     const error = itineraryDetailsError(day, time, details) || (details.endDay && !details.endTime ? '終了・到着時刻を入力するか、日時を外してください' : '');
     if (error) { setFormError(error); return; }
     const originalItem = items.find((item) => item.id === editingId);
@@ -326,11 +370,12 @@ export default function ItineraryScreen() {
     const input = editingPlace && originalItem ? { ...originalItem, day, time, details } : { day, time, kind: '予定', title: savedTitle.slice(0, 160), note: note.trim(), details };
     if (editingId) updateItem(editingId, input);
     else createItem(input);
-    closeEditor(); toast('保存しました');
+    closeEditor(); toast('予定を保存しました');
   };
+
   const remove = () => {
     if (!editingId) return;
-    confirmDeletion('予定', () => {
+    confirmDeletion('予定を削除しますか？', title, () => {
       deleteItem(editingId);
       setViewingItemId(null);
       closeEditor();
@@ -453,7 +498,11 @@ export default function ItineraryScreen() {
         </View>
         </View>
       </ScrollView>
-      {composer.enabled ? <PlannerCandidates source={composer.source} disabled={composer.linkPending} /> : null}
+      {composer.enabled ? <PlannerCandidates source={composer.source} onSelect={composer.select} onViewItem={(id) => {
+        const item = items.find(entry => entry.id === id);
+        if (!item) return;
+        interruptArrival(); requestedItem.current = id; pendingScrollDay.current = item.day; scheduleRequestedScroll();
+      }} /> : null}
       </View></PlannerDrag>
       <MotionPresence>{composer.pending ? <PlannerTimeSheet key={`${composer.pending.source.id}:${composer.pending.slot.day}`} placement={composer.pending} error={composer.error} onClose={composer.cancel} onConfirm={composer.confirmTime} /> : null}</MotionPresence>
 
@@ -628,8 +677,8 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   planDate: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   planDateText: { color: palette.slate, fontSize: 15, lineHeight: 22, flexShrink: 1 },
   planNote: { gap: 4 },
-  planNoteText: { color: palette.ink, fontSize: 15, lineHeight: 23 },
-  noteInput: { minHeight: 96, textAlignVertical: 'top' },
-  deleteButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20, borderRadius: 12, backgroundColor: palette.paper },
-  deleteText: { color: palette.danger, fontWeight: '700' },
+  planNoteText: { color: palette.ink, fontSize: 16, lineHeight: 26 },
+  noteInput: { minHeight: 120, textAlignVertical: 'top' },
+  deleteButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', marginTop: 24 },
+  deleteText: { color: palette.danger, fontSize: 15, fontWeight: '700' },
 });

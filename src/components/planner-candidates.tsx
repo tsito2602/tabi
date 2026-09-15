@@ -12,7 +12,7 @@ import { FormSheet } from './form-sheet';
 import { PlannerCard, PlannerHandle } from './planner-drag';
 import { ActionButton } from './ui/action-button';
 
-export function PlannerCandidates({ source, disabled = false }: { source: PlanSource | null; disabled?: boolean }) {
+export function PlannerCandidates({ source, disabled = false }: { source: PlanSource | null; disabled?: boolean; onSelect?: (source: PlanSource | null) => void; onViewItem?: (id: string) => void }) {
   const { places, items, canEdit } = useTravel();
   const p = usePalette(), s = useThemedStyles(createStyles);
   const { height } = useWindowDimensions(), insets = useSafeAreaInsets();
